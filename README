@@ -2,3 +2,7 @@
 
 Virtual RC
 
+Requires the OpenCV library (with the python wrapper). Instructions for
+installing it on Ubuntu here:
+
+https://help.ubuntu.com/community/OpenCV
