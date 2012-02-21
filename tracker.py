@@ -85,9 +85,12 @@ hsv_frame = cvCreateImage(size, IPL_DEPTH_8U, 3);
 
 #Provide HSV range for orange ball
 orange_ball = TrackableBall((5,150,100),(15,256,200),(255,115,0), "orange ball");
-luigi_ball = TrackableBall((40,200,50),(70,256,100),(255,115,0), "Luigi!");
+#test_ball = TrackableBall((0,0,200),(10,10,256),(255,115,0), "Luigi!");
+#blue_ball = TrackableBall((80,100,100),(120,180,200),(255,115,0), "blue ball");
+#intensity = TrackableBall((0, 0, 128), (256, 30, 256), (255,255,255), "intensity");
 #List of balls to track
-balls = [orange_ball, luigi_ball];
+#balls = [orange_ball, test_ball, blue_ball];
+balls = [orange_ball];
 
 capture = cvCreateCameraCapture(-1);
 if not capture:
