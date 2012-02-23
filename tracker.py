@@ -47,6 +47,9 @@ if __name__ == '__main__':
 
     # Grab first frame
     frame = cvQueryFrame(capture)
+    if frame == None:
+        print "Yikes. Frame is None. Aborting"
+        exit(1);
     
     #Allocate!
     white = cvScalar(255,255,255,0);
@@ -56,8 +59,8 @@ if __name__ == '__main__':
     #BitDepth && number of channels
     hsv = cvCreateImage(size, IPL_DEPTH_8U, 3);
     
-    velx = cvCreateImage(size, IPL_DEPTH_32F, 1);
-    vely = cvCreateImage(size, IPL_DEPTH_32F, 1);
+    velx = cvCreateMat(size[1], size[0], CV_32FC1);
+    vely = cvCreateMat(size[1], size[0], CV_32FC1);
     
     #Make Window!
     camWindow = "Webcam"
@@ -108,6 +111,7 @@ if __name__ == '__main__':
         cvCvtColor(image, gray, CV_BGR2GRAY);
     
         # Do optical flow calculation
+        print velx
         cvCalcOpticalFlowLK(gray_prev, gray, blocksize, velx, vely);
     
         scribble = cvCreateImage(size, IPL_DEPTH_8U, 3)
