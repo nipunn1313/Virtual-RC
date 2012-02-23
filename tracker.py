@@ -43,6 +43,7 @@ if __name__ == '__main__':
 
     if not capture:
         print "Could not open webcam";
+        exit(1);
 
     # Grab first frame
     frame = cvQueryFrame(capture)
@@ -52,7 +53,7 @@ if __name__ == '__main__':
     blocksize = (7,7);
     size = cvGetDims(frame);
     size = (size[1], size[0]); #It's backwards. Dunno why.
-    #BitDepth && number of channesl
+    #BitDepth && number of channels
     hsv = cvCreateImage(size, IPL_DEPTH_8U, 3);
     
     velx = cvCreateImage(size, IPL_DEPTH_32F, 1);
