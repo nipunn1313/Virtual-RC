@@ -111,7 +111,6 @@ if __name__ == '__main__':
         cvCvtColor(image, gray, CV_BGR2GRAY);
     
         # Do optical flow calculation
-        print velx
         cvCalcOpticalFlowLK(gray_prev, gray, blocksize, velx, vely);
     
         scribble = cvCreateImage(size, IPL_DEPTH_8U, 3)
