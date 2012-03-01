@@ -1,4 +1,4 @@
-#! /usr/bin/python
+# ! /usr/bin/python
 
 import sys
 
@@ -8,7 +8,7 @@ import pdb
 
 from FPSLogger import *
 
-#Mouse Callbacks
+# Mouse Callbacks
 
 printcolor = True;
 
@@ -21,13 +21,13 @@ def BGRMouseCallback(event, x, y, flags, rgb_frame):
         color = rgb_frame[y][x];
         print "BGR: " + str(color);
 
-#Main
+# Main
 
 if __name__ == '__main__':
 
     print "Initializing the Tracker";
 
-    # Capture webcam
+    # Set device number to param or default
     try:
         # try to get the device number from the command line
         device = int (sys.argv [1])
@@ -45,53 +45,55 @@ if __name__ == '__main__':
         print "Could not open webcam";
         exit(1);
 
-    # Grab first frame
+    # Grab first frame so we can get its size and initialize other frame
+    # variables
     frame = cvQueryFrame(capture)
     if frame == None:
         print "Yikes. Frame is None. Aborting"
         exit(1);
     
-    #Allocate!
+    # Allocate!
     white = cvScalar(255,255,255,0);
     size = cvGetDims(frame);
-    size = (size[1], size[0]); #It's backwards. Dunno why.
+    size = (size[1], size[0]); # It's backwards. Dunno why.
 
-    #BitDepth && number of channesl
+    # BitDepth && number of channels
     prev_frame = cvCreateImage(size, IPL_DEPTH_8U, 3);
     diff_frame = cvCreateImage(size, IPL_DEPTH_8U, 3);
     
-    #Make Window!
-    camWindow = "Webcam"
+    # Make Windows!
+    camWindow = "Raw Input"
     diffWindow = "Diff"
     cvNamedWindow(camWindow, CV_WINDOW_AUTOSIZE);
     cvNamedWindow(diffWindow, CV_WINDOW_AUTOSIZE);
     
-    #Customize Window!
-    #cvSetMouseCallback(camWindow, BGRMouseCallback, frame);
+    # Customize Window!
+    # cvSetMouseCallback(camWindow, BGRMouseCallback, frame);
     
     print "Successfully Initialized the Tracker";
     
-    #Now to do the fun stuff!
-    fps = FPSLogger();
+    # Now to do the fun stuff!
+    # fps = FPSLogger();
     while 1:
+        # Update prev_frame
         cvCopy(frame, prev_frame);
 
-        # Query and show frame
+        # Query for current frame and show frame
         frame = cvQueryFrame(capture);
         if frame == None:
             print "Yikes. Frame is None. Aborting"
             exit(1);
     
+        # Generate the diff frame 
         cvSub(frame, prev_frame, diff_frame);
 
-        #Show images.
+        # Print images in the windows
         cvShowImage(camWindow, frame);
         cvShowImage(diffWindow, diff_frame);
 
-        #WaitKey magically flushes buffer? Dunno why.
+        # WaitKey magically flushes buffer? Dunno why.
         cvWaitKey(1);
     
-    
-        #Measure rate
-        #fps.printFPS();
+        # Measure rate
+        # fps.printFPS();
     

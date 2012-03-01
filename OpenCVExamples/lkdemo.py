@@ -127,7 +127,7 @@ if __name__ == '__main__':
             points [1] = cv.cvGoodFeaturesToTrack (
                 grey, eig, temp,
                 MAX_COUNT,
-                quality, min_distance, None, 3, 0, 0.04)
+                quality, min_distance, None, 3, 1, 0.04)
             
             # refine the corner locations
             cv.cvFindCornerSubPix (
