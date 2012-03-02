@@ -47,6 +47,8 @@ Tracking algorithm:
 		-First, use the location of the previous blob to look at
 		features (faster and more accurate than searching the entire
 				frame for the car)
+			-May be faster to use optical flow to determine which
+				area to search	
 		-Use color detection to match a car (better than matching a
 				static/constant color because of lighting or 
 				projector colors causing problems)

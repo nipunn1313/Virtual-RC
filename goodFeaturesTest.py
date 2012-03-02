@@ -45,6 +45,7 @@ if __name__ == '__main__':
     size = (size[1], size[0]); # It's backwards. Dunno why.
 
     # BitDepth && number of channels
+    # Features frame needs color so it uses 3 channels
     features_frame = cv.CreateImage(size, cv.IPL_DEPTH_8U, 3);
     gray_frame = cv.CreateImage(size, cv.IPL_DEPTH_8U, 1);
 
@@ -72,14 +73,18 @@ if __name__ == '__main__':
             print "Yikes. Frame is None. Aborting"
             exit(1);
 
-        cv.CvtColor(frame, gray_frame, cv.CV_BGR2GRAY);
-
+        # Every time we go through the loop, copy the current picture
+        # before drawing dots so we can see what the actual "feature" is
         cv.Copy(frame, features_frame);
+
+        # Convert to gray before passing to GoodFeaturesToTrack()
+        cv.CvtColor(frame, gray_frame, cv.CV_BGR2GRAY);
 
         # Generate the features frame
         for x,y in cv.GoodFeaturesToTrack(gray_frame, eig_image, temp_image,
                 50, 0.01, 10, None, 3, 0):
             
+            # Draw dots for features
             cv.Circle(features_frame, (int(x), int(y)), 3, 
                     cv.Scalar(0,50,255,0), -1, 8, 0);
 
