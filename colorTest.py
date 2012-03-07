@@ -71,7 +71,7 @@ if __name__ == '__main__':
     # Make Windows!
     camWindow = "Raw Input"
     hsvWindow = "HSV (Converted Raw Input)"
-    filterWindow = "Filter"
+    filterWindow = "Mario Filter"
     luigiWindow = "Luigi"
     marioWindow = "Mario"
     cv.NamedWindow(camWindow, cv.CV_WINDOW_AUTOSIZE);
@@ -84,9 +84,9 @@ if __name__ == '__main__':
     cv.SetMouseCallback(camWindow, HSVMouseCallback, hsv_frame);
 
     # For BackProject for meanShift()
-    hist = cvCreateHist(32, CV_HIST_ARRAY, [0,180], 1)
-    backproject = cvCreateImage(size, cv.IPL_DEPTH_8U, 1);
-    selection = cvRect(0, 0, frame.width, frame.height);
+    #hist = cv.CreateHist(32, CV_HIST_ARRAY, [0,180], 1)
+    #backproject = cv.CreateImage(size, cv.IPL_DEPTH_8U, 1);
+    #selection = cvRect(0, 0, frame.width, frame.height);
     
     # Customize Window!
     # cvSetMouseCallback(camWindow, BGRMouseCallback, frame);
@@ -112,34 +112,30 @@ if __name__ == '__main__':
         cv.InRangeS(hsv_frame, (62, 30, 50), (79, 160, 140),
                             green_filter_frame);
 
-        # Filter Mario by red (0-10, 170-180) and blue
-        cv.InRangeS(hsv_frame, (0, 130, 50), (10, 220, 230),
+        # Filter Mario by red (0-10, 170-180)
+        cv.InRangeS(hsv_frame, (0, 180, 90), (10, 245, 180),
                             red1_filter_frame);
-        cv.InRangeS(hsv_frame, (170, 190, 110), (180, 230, 150),
+        cv.InRangeS(hsv_frame, (170, 190, 110), (180, 245, 180),
                             red2_filter_frame);
         cv.Add(red1_filter_frame, red2_filter_frame, mario_filter_frame);
 
-        # Try GoodFeatures...() on the filtered images
         cv.Copy(frame, luigi_features_frame);
+        cv.Copy(frame, mario_features_frame);
 
-        for x,y in cv.GoodFeaturesToTrack(green_filter_frame, eig_mat, temp_mat,
-                50, 0.01, 10, None, 3, 0):
+        # Try GoodFeatures...() on the filtered images
+        for x,y in cv.GoodFeaturesToTrack(green_filter_frame, eig_mat, 
+                temp_mat, 50, 0.01, 10, None, 3, 0):
 
             # Draw dots for features
             cv.Circle(luigi_features_frame, (int(x), int(y)), 3,
                     cv.Scalar(0, 50, 255, 0), -1, 8, 0);
 
-        cv.Copy(frame, mario_features_frame);
-
-        for x,y in cv.GoodFeaturesToTrack(mario_filter_frame, eig_mat, temp_mat,
-                50, 0.01, 10, None, 3, 0):
+        for x,y in cv.GoodFeaturesToTrack(mario_filter_frame, eig_mat, 
+                temp_mat, 50, 0.01, 10, None, 3, 0):
 
             # Draw dots for features
             cv.Circle(mario_features_frame, (int(x), int(y)), 3,
                     cv.Scalar(0, 50, 255, 0), -1, 8, 0);
-
-        # Do meanShift() on features
-        cv.calcBackProject(luigi_features_frame, backproject, hist);
 
         # Print images in the windows
         cv.ShowImage(camWindow, frame);
