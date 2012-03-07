@@ -9,6 +9,16 @@ import pdb
 
 from FPSLogger import *
 
+from threading import Thread
+
+import pygame
+from pygame.locals import *
+from xbee import XBee
+import serial
+
+#Shared variable for speed
+speed = 1
+
 printcolor = True;
 def HSVMouseCallback(event, x, y, flags, hsv_frame):
     if (printcolor and event == cv.CV_EVENT_MOUSEMOVE):
@@ -94,22 +104,9 @@ def GetUtilOfFeature(feature, features):
 
     return util;
 
-# Main
 
-if __name__ == '__main__':
-
-    print "Initializing the Tracker";
-
-    # Set device number to param or default
-    try:
-        # try to get the device number from the command line
-        device = int (sys.argv [1])
-
-        # got it ! so remove it from the arguments
-        del sys.argv [1]
-    except (IndexError, ValueError):
-        # no device number on the command line, assume we want the 1st device
-        device = -1
+def car_tracking(device):
+    global speed
 
     # Access to the webcam stream
     capture = cv.CreateCameraCapture(device);
@@ -215,7 +212,11 @@ if __name__ == '__main__':
                 cv.Scalar(0, 0, 0, 0), 2, 8, 0);
 
         cv.Rectangle(luigi_features_frame, (0,0), (50,40), cv.Scalar(0,0,0,0));
-        #print prev_pos
+
+        if prev_pos[0] < (size[0]/2):
+            speed = 1
+        else:
+            speed = 4
 
         # Print images in the windows
         cv.ShowImage(camWindow, frame);
@@ -229,3 +230,84 @@ if __name__ == '__main__':
     
         # Measure rate
         # fps.printFPS();
+
+def driveXbee():
+    global speed
+
+    ser = serial.Serial('/dev/ttyUSB0', 9600)
+    xbee = XBee(ser)
+
+    pygame.init()
+    pygame.display.set_mode((100,100))
+    clock = pygame.time.Clock()
+
+    up = 0
+    down = 0
+    left = 0
+    right = 0
+
+    while 1:
+        clock.tick(10)
+
+        for event in pygame.event.get():
+            if event.type == QUIT or (event.type == KEYDOWN and event.key == K_ESCAPE):
+                # Send the packet to stop several times
+                xbee.send('tx', dest_addr='\x00\x02', data='\x00')
+                xbee.send('tx', dest_addr='\x00\x02', data='\x00')
+                xbee.send('tx', dest_addr='\x00\x02', data='\x00')
+                xbee.send('tx', dest_addr='\x00\x02', data='\x00')
+                return
+
+            if event.type == KEYDOWN and (event.key == K_w or event.key == K_UP):
+                up = 1
+            if event.type == KEYUP and (event.key == K_w or event.key == K_UP):
+                up = 0
+
+            if event.type == KEYDOWN and (event.key == K_s or event.key == K_DOWN):
+                down = 1
+            if event.type == KEYUP and (event.key == K_s or event.key == K_DOWN):
+                down = 0
+
+            if event.type == KEYDOWN and (event.key == K_a or event.key == K_LEFT):
+                left = 1
+            if event.type == KEYUP and (event.key == K_a or event.key == K_LEFT):
+                left = 0
+
+            if event.type == KEYDOWN and (event.key == K_d or event.key == K_RIGHT):
+                right = 1
+            if event.type == KEYUP and (event.key == K_d or event.key == K_RIGHT):
+                right = 0
+
+        data_to_send = chr(speed | (up << 2) | (down << 3) | (left << 4) | (right << 5))
+        #print bin(int(data_to_send))
+        xbee.send('tx', dest_addr='\x00\x02', data=data_to_send)
+        #xbee.send('tx', dest_addr='\x00\x02', data='\x00')
+
+# Main
+
+if __name__ == '__main__':
+    global speed
+
+    print "Initializing the Tracker";
+
+    # Set device number to param or default
+    try:
+        # try to get the device number from the command line
+        device = int (sys.argv [1])
+
+        # got it ! so remove it from the arguments
+        del sys.argv [1]
+    except (IndexError, ValueError):
+        # no device number on the command line, assume we want the 1st device
+        device = -1
+
+    t = Thread(target=car_tracking, args=(device,));
+    t.start();
+
+#t = Thread(target=driveXbee);
+#t.daemon = True;
+#t.start();
+
+    while 1:
+        print speed
+
