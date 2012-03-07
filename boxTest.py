@@ -214,7 +214,6 @@ if __name__ == '__main__':
         cv.Circle(luigi_features_frame, int_pos, 30,
                 cv.Scalar(0, 0, 0, 0), 2, 8, 0);
 
-        cv.Rectangle(luigi_features_frame, (0,0), (50,40), cv.Scalar(0,0,0,0));
         #print prev_pos
 
         # Print images in the windows
