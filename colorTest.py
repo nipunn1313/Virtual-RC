@@ -109,7 +109,7 @@ if __name__ == '__main__':
         cv.CvtColor(smooth_frame, hsv_frame, cv.CV_BGR2HSV);
 
         # Filter Luigi by green
-        cv.InRangeS(hsv_frame, (62, 30, 50), (79, 160, 140),
+        cv.InRangeS(hsv_frame, (42, 30, 50), (79, 160, 140),
                             green_filter_frame);
 
         # Filter Mario by red (0-10, 170-180)
@@ -140,7 +140,7 @@ if __name__ == '__main__':
         # Print images in the windows
         cv.ShowImage(camWindow, frame);
         cv.ShowImage(hsvWindow, hsv_frame);
-        cv.ShowImage(filterWindow, mario_filter_frame);
+        cv.ShowImage(filterWindow, green_filter_frame);
         cv.ShowImage(luigiWindow, luigi_features_frame);
         cv.ShowImage(marioWindow, mario_features_frame);
 
