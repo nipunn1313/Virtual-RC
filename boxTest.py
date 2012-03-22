@@ -187,7 +187,7 @@ def car_tracking(device):
         cv.Add(red1_filter_frame, red2_filter_frame, mario_filter_frame);
 
         cv.Copy(frame, luigi_features_frame);
-        cv.Copy(frame, mario_features_frame);
+        #cv.Copy(frame, mario_features_frame);
 
         # Try GoodFeatures...() on the filtered images
 #        for x,y in cv.GoodFeaturesToTrack(green_filter_frame, eig_mat, 
@@ -306,6 +306,6 @@ if __name__ == '__main__':
 #t.daemon = True;
 #t.start();
 
-    while 1:
-        print speed
+    #while 1:
+        #print speed
 
