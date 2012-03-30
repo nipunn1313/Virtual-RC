@@ -140,7 +140,7 @@ if __name__ == '__main__':
         # Print images in the windows
         cv.ShowImage(camWindow, frame);
         cv.ShowImage(hsvWindow, hsv_frame);
-        cv.ShowImage(filterWindow, mario_filter_frame);
+        cv.ShowImage(filterWindow, green_filter_frame);
         cv.ShowImage(luigiWindow, luigi_features_frame);
         cv.ShowImage(marioWindow, mario_features_frame);
 
