@@ -1,2 +1,5 @@
 all:
-	g++ -o colorTest colorTest.cpp `pkg-config opencv --cflags --libs` -lblob
+	g++ -o MOGBlob MOGBlob.cpp `pkg-config opencv --cflags --libs` -lblob
+
+clean:
+	rm MOGBlob

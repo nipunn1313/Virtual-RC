@@ -20,7 +20,7 @@ using namespace cv;
 #define BLURRED_IND 3
 #define ERODED_IND 4
 #define DILATED_IND 5
-#define NUM_WINDOWS 6
+#define NUM_WINDOWS 3
 #define NUM_FRAMES 6
 
 int main()
@@ -29,7 +29,11 @@ int main()
 
     VideoCapture cap;
 
-    cap.open(1);
+    for (int i=1; i>=0; i--) {
+        cap.open(0);
+        if (cap.isOpened())
+            break;
+    }
     if (!cap.isOpened())
     {
         puts("***Initializing camera failed***\n");
@@ -37,7 +41,9 @@ int main()
     }
 
     String windowNames[NUM_WINDOWS] = 
-        {"Capture", "Mogged", "Thresholded", "Blurred", "Eroded", "Dilated"};
+    {"Capture", "Blobs", "filtered image"};
+        //{"Capture", "Mogged", "Thresholded"};// "Blurred", "Eroded", "Dilated"};
+
     // Create windows
     for (int i = 0; i < NUM_WINDOWS; i++)
     {
@@ -47,9 +53,13 @@ int main()
     Mat image;
     // Correspond to the windows
     Mat frames[NUM_FRAMES];
+
+    cap >> image;
     
-    moggedAndSmoothed = createImage(CV_WINDOW_AUTOSIZE, IPL_DEPTH_8U, 1);
-    blobImage = createImage(CV_WINDOW_AUTOSIZE, IPL_DEPTH_8U, 1);
+    IplImage *moggedAndSmoothed;
+    IplImage *blobImage;
+    moggedAndSmoothed = cvCreateImage(image.size(), IPL_DEPTH_8U, 1);
+    blobImage = cvCreateImage(image.size(), IPL_DEPTH_8U, 3);
 
     BackgroundSubtractorMOG2 mog;
 
@@ -73,19 +83,32 @@ int main()
         dilate(frames[4], frames[5], Mat());
 
         CBlobResult blobs;
-        CBlob *blob;
 
-        blobs = CBlobResult(frames[5], NULL, 255);
-        blobs.Filter(blobs, B_EXCLUDE, CBlobGetArea(), B_GREATER, 10000);
+        CvMat copy(frames[5]);
+        CvMat copy2(frames[5]);
+        cvCopy(&copy, moggedAndSmoothed);
+        cvMerge(&copy2, &copy2, &copy2, NULL, blobImage);
 
-        for (i = 0; i < blobs.GetNumBlobs(); i++)
+        blobs = CBlobResult(moggedAndSmoothed, NULL, 0);
+        blobs.Filter(blobs, B_EXCLUDE, CBlobGetArea(), B_OUTSIDE, 
+                50, 150);
+
+        for (int i = 0; i < blobs.GetNumBlobs(); i++)
         {
+            CBlob *currentBlob;
             currentBlob = blobs.GetBlob(i);
             currentBlob->FillBlob(blobImage, CV_RGB(255, 0, 0));
+            printf("Found a blob! x=(%f,%f) y=(%f,%f)\n", currentBlob->MinX(),
+                    currentBlob->MaxX(),
+                    currentBlob->MinY(),
+                    currentBlob->MaxY()
+                    );
         }
 
         imshow(windowNames[0], frames[0]);
-        imshow(windowNames[5], frames[5]);
+        imshow(windowNames[2], frames[5]);
+        Mat b(blobImage);
+        imshow(windowNames[1], b);
 
         waitKey(1);
     }
