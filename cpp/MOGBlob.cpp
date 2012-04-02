@@ -23,6 +23,14 @@ using namespace cv;
 #define NUM_WINDOWS 3
 #define NUM_FRAMES 6
 
+void HSVMouseCallback(int event, int x, int y, int flags, void *frame_p)
+{
+    Mat *mat_p = (Mat *) frame_p;
+
+    //std::cout << ((double *)(mat_p->data.ptr + mat_p->step*x))[y] << std::endl;
+    //std::cout << mat_p->at<Vec<float, 2>>(x,y) << std::endl;
+}
+
 int main()
 {
     puts("***Initializing capture***\n");
@@ -30,7 +38,7 @@ int main()
     VideoCapture cap;
 
     for (int i=1; i>=0; i--) {
-        cap.open(0);
+        cap.open(i);
         if (cap.isOpened())
             break;
     }
@@ -54,6 +62,9 @@ int main()
     // Correspond to the windows
     Mat frames[NUM_FRAMES];
 
+    // Mouse callback for HSV
+    setMouseCallback(windowNames[0], HSVMouseCallback, &frames[2]);
+
     cap >> image;
     
     IplImage *moggedAndSmoothed;
@@ -61,7 +72,7 @@ int main()
     moggedAndSmoothed = cvCreateImage(image.size(), IPL_DEPTH_8U, 1);
     blobImage = cvCreateImage(image.size(), IPL_DEPTH_8U, 3);
 
-    BackgroundSubtractorMOG2 mog;
+    BackgroundSubtractorMOG2 mog(50, 16, true);
 
     puts("***Done initializing capture***\n");
     
@@ -75,15 +86,22 @@ int main()
 
         frames[0] = image.clone();
 
-        mog(frames[0], frames[1], -1);
+        //threshold(frames[0], frames[1], 128, 255, THRESH_BINARY);
+        //erode(frames[2], frames[3], Mat());
+        //dilate(frames[3], frames[4], Mat());
+        
+        medianBlur(frames[0], frames[1], 3);
+        cvtColor(frames[1], frames[2], CV_BGR2HSV);
+        inRange(frames[2], (0, 0, 0), (250, 250, 250), frames[3]);
+        //inRange(frames[2], (70, 50, 90), (90, 160, 150), frames[3]);
+	
+        mog(frames[3], frames[4], -1);
+	    medianBlur(frames[4], frames[5], 9);
 
-        threshold(frames[1], frames[2], 128, 255, THRESH_BINARY);
-        medianBlur(frames[2], frames[3], 9);
-        erode(frames[3], frames[4], Mat());
-        dilate(frames[4], frames[5], Mat());
-
+	    // Get blobs
         CBlobResult blobs;
 
+	    // We need to copy over the filtered frame for the CBlobResult()
         CvMat copy(frames[5]);
         CvMat copy2(frames[5]);
         cvCopy(&copy, moggedAndSmoothed);
@@ -91,22 +109,24 @@ int main()
 
         blobs = CBlobResult(moggedAndSmoothed, NULL, 0);
         blobs.Filter(blobs, B_EXCLUDE, CBlobGetArea(), B_OUTSIDE, 
-                50, 150);
+                100, 250);
 
         for (int i = 0; i < blobs.GetNumBlobs(); i++)
         {
             CBlob *currentBlob;
             currentBlob = blobs.GetBlob(i);
             currentBlob->FillBlob(blobImage, CV_RGB(255, 0, 0));
+	        /*
             printf("Found a blob! x=(%f,%f) y=(%f,%f)\n", currentBlob->MinX(),
                     currentBlob->MaxX(),
                     currentBlob->MinY(),
                     currentBlob->MaxY()
                     );
+		    */
         }
 
         imshow(windowNames[0], frames[0]);
-        imshow(windowNames[2], frames[5]);
+        imshow(windowNames[2], frames[2]);
         Mat b(blobImage);
         imshow(windowNames[1], b);
 
