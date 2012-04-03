@@ -10,6 +10,7 @@
 #include "cvblob/BlobResult.h"
 #include "cvblob/ComponentLabeling.h"
 
+#include <iostream>
 #include <stdio.h>
 
 using namespace cv;
@@ -23,12 +24,23 @@ using namespace cv;
 #define NUM_WINDOWS 3
 #define NUM_FRAMES 6
 
+struct hsv_color {
+    uchar h;
+    uchar s;
+    uchar v;
+};
+
+std::ostream& operator<<(std::ostream& o, hsv_color &c) {
+    o << "(" << (int)c.h << "," << (int)c.s << "," << (int)c.v << ")";
+    return o;
+}
+
 void HSVMouseCallback(int event, int x, int y, int flags, void *frame_p)
 {
     Mat *mat_p = (Mat *) frame_p;
 
-    //std::cout << ((double *)(mat_p->data.ptr + mat_p->step*x))[y] << std::endl;
-    //std::cout << mat_p->at<Vec<float, 2>>(x,y) << std::endl;
+    hsv_color color = mat_p->at<hsv_color>(y,x);
+    std::cout << "Color=" << color << std::endl;
 }
 
 int main()
