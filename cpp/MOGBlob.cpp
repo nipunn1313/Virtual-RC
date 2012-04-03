@@ -15,14 +15,13 @@
 
 using namespace cv;
 
-#define CAPTURE_IND 0
-#define MOGGED_IND 1
-#define THRESHOLDED_IND 2
-#define BLURRED_IND 3
-#define ERODED_IND 4
-#define DILATED_IND 5
-#define NUM_WINDOWS 3
-#define NUM_FRAMES 6
+#define NUM_WINDOWS 7
+#define NUM_FRAMES 7
+static String frameNames[NUM_FRAMES] = 
+    {"Capture", "Blurred", "HSV", "InRange", "BG Subtracted", "Reblurred", 
+        "Blobs"};
+/* Only the frames we want displayed */
+static int windows[NUM_WINDOWS] = {0, 1, 2, 3, 4, 5, 6};
 
 struct hsv_color {
     uchar h;
@@ -60,24 +59,21 @@ int main()
         return 0;
     }
 
-    String windowNames[NUM_WINDOWS] = 
-    {"Capture", "Blobs", "filtered image"};
-        //{"Capture", "Mogged", "Thresholded"};// "Blurred", "Eroded", "Dilated"};
+    Mat image;
+    cap >> image; /* Initial capture for the size info */
+    Mat frames[NUM_FRAMES]; /* Frames for each stage */
 
     // Create windows
     for (int i = 0; i < NUM_WINDOWS; i++)
     {
-        namedWindow(windowNames[i], CV_WINDOW_AUTOSIZE);
+        int frame = windows[i];
+        namedWindow(frameNames[frame], CV_WINDOW_AUTOSIZE);
+
+        // Mouse callback for HSV. Callback takes
+        if (frame == 0) {
+            setMouseCallback(frameNames[0], HSVMouseCallback, &frames[0]);
+        }
     }
-
-    Mat image;
-    // Correspond to the windows
-    Mat frames[NUM_FRAMES];
-
-    // Mouse callback for HSV
-    setMouseCallback(windowNames[0], HSVMouseCallback, &frames[2]);
-
-    cap >> image;
     
     IplImage *moggedAndSmoothed;
     IplImage *blobImage;
@@ -91,10 +87,7 @@ int main()
     for (;;)
     {
         cap >> image;
-        if (image.empty())
-        {
-            break;
-        }
+        if (image.empty()) break;
 
         frames[0] = image.clone();
 
@@ -137,11 +130,14 @@ int main()
 		    */
         }
 
-        imshow(windowNames[0], frames[0]);
-        imshow(windowNames[2], frames[2]);
-        Mat b(blobImage);
-        imshow(windowNames[1], b);
+        frames[6] = blobImage;
+
+        for (int i=0; i<NUM_WINDOWS; i++) {
+            int frame = windows[i];
+            imshow(frameNames[frame], frames[frame]);
+        }
 
         waitKey(1);
     }
 }
+
