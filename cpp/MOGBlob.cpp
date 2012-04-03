@@ -15,6 +15,14 @@
 
 using namespace cv;
 
+#define CAPTURE_IND 0
+#define BLURRED_IND 1
+#define HSV_IND 2
+#define COLOR_FILTER_IND 3
+#define BG_SUB_IND 4
+#define REBLURRED_IND 5
+#define BLOBS_IND 6
+
 #define NUM_WINDOWS 7
 #define NUM_FRAMES 7
 static String frameNames[NUM_FRAMES] = 
@@ -70,8 +78,9 @@ int main()
         namedWindow(frameNames[frame], CV_WINDOW_AUTOSIZE);
 
         // Mouse callback for HSV. Callback takes
-        if (frame == 0) {
-            setMouseCallback(frameNames[0], HSVMouseCallback, &frames[0]);
+        if (frame == CAPTURE_IND) {
+            setMouseCallback(frameNames[CAPTURE_IND], HSVMouseCallback, 
+                    &frames[CAPTURE_IND]);
         }
     }
     
@@ -89,19 +98,19 @@ int main()
         cap >> image;
         if (image.empty()) break;
 
-        frames[0] = image.clone();
+        frames[CAPTURE_IND] = image.clone();
 
         //threshold(frames[0], frames[1], 128, 255, THRESH_BINARY);
         //erode(frames[2], frames[3], Mat());
         //dilate(frames[3], frames[4], Mat());
         
-        medianBlur(frames[0], frames[1], 3);
-        cvtColor(frames[1], frames[2], CV_BGR2HSV);
-        inRange(frames[2], (0, 0, 0), (250, 250, 250), frames[3]);
-        //inRange(frames[2], (70, 50, 90), (90, 160, 150), frames[3]);
+        medianBlur(frames[CAPTURE_IND], frames[BLURRED_IND], 3);
+        cvtColor(frames[BLURRED_IND], frames[HSV_IND], CV_BGR2HSV);
+        inRange(frames[HSV_IND], Scalar(70, 50, 90), 
+                Scalar(90, 160, 150), frames[COLOR_FILTER_IND]);
 	
-        mog(frames[3], frames[4], -1);
-	    medianBlur(frames[4], frames[5], 9);
+        mog(frames[COLOR_FILTER_IND], frames[BG_SUB_IND], -1);
+	    medianBlur(frames[BG_SUB_IND], frames[REBLURRED_IND], 9);
 
 	    // Get blobs
         CBlobResult blobs;
@@ -130,7 +139,7 @@ int main()
 		    */
         }
 
-        frames[6] = blobImage;
+        frames[BLOBS_IND] = blobImage;
 
         for (int i=0; i<NUM_WINDOWS; i++) {
             int frame = windows[i];
