@@ -22,14 +22,19 @@ using namespace cv;
 #define BG_SUB_IND 4
 #define REBLURRED_IND 5
 #define BLOBS_IND 6
+#define ERODED_IND 7
+#define DILATED_IND 8
+#define BG_AND_COLOR_IND 9
+#define THRESH_IND 10
 
-#define NUM_WINDOWS 7
-#define NUM_FRAMES 7
-static String frameNames[NUM_FRAMES] = 
+static String frameNames[] = 
     {"Capture", "Blurred", "HSV", "InRange", "BG Subtracted", "Reblurred", 
-        "Blobs"};
+        "Blobs", "BGSub&Eroded", "BGSub&Dilated", "BGSub AND color",
+        "Thresholded BGSub"};
 /* Only the frames we want displayed */
-static int windows[NUM_WINDOWS] = {0, 1, 2, 3, 4, 5, 6};
+static int windows[] = {0, 3, 9, 10};
+#define NUM_FRAMES (sizeof(frameNames) / sizeof(frameNames[0]))
+#define NUM_WINDOWS (sizeof(windows) / sizeof(windows[0]))
 
 struct hsv_color {
     uchar h;
@@ -47,7 +52,7 @@ void HSVMouseCallback(int event, int x, int y, int flags, void *frame_p)
     Mat *mat_p = (Mat *) frame_p;
 
     hsv_color color = mat_p->at<hsv_color>(y,x);
-    std::cout << "Color=" << color << std::endl;
+    std::cout << "HSVColor=" << color << std::endl;
 }
 
 int main()
@@ -100,26 +105,28 @@ int main()
 
         frames[CAPTURE_IND] = image.clone();
 
-        //threshold(frames[0], frames[1], 128, 255, THRESH_BINARY);
-        //erode(frames[2], frames[3], Mat());
-        //dilate(frames[3], frames[4], Mat());
         
         medianBlur(frames[CAPTURE_IND], frames[BLURRED_IND], 3);
-        cvtColor(frames[BLURRED_IND], frames[HSV_IND], CV_BGR2HSV);
-        inRange(frames[HSV_IND], Scalar(70, 50, 90), 
-                Scalar(90, 160, 150), frames[COLOR_FILTER_IND]);
-	
-        mog(frames[COLOR_FILTER_IND], frames[BG_SUB_IND], -1);
-	    medianBlur(frames[BG_SUB_IND], frames[REBLURRED_IND], 9);
+        mog(frames[BLURRED_IND], frames[BG_SUB_IND], -1);
+        erode(frames[BG_SUB_IND], frames[ERODED_IND], Mat());
+        dilate(frames[ERODED_IND], frames[DILATED_IND], Mat());
+        threshold(frames[DILATED_IND], frames[THRESH_IND], 128, 255, 
+                THRESH_BINARY);
 
+        cvtColor(frames[BLURRED_IND], frames[HSV_IND], CV_BGR2HSV);
+        inRange(frames[HSV_IND], Scalar(50, 50, 70), 
+                Scalar(100, 160, 200), frames[COLOR_FILTER_IND]);
+
+        bitwise_and(frames[THRESH_IND], frames[COLOR_FILTER_IND], 
+               frames[BG_AND_COLOR_IND]);
+	
 	    // Get blobs
         CBlobResult blobs;
 
 	    // We need to copy over the filtered frame for the CBlobResult()
-        CvMat copy(frames[5]);
-        CvMat copy2(frames[5]);
+        CvMat copy(frames[COLOR_FILTER_IND]);
         cvCopy(&copy, moggedAndSmoothed);
-        cvMerge(&copy2, &copy2, &copy2, NULL, blobImage);
+        cvMerge(&copy, &copy, &copy, NULL, blobImage);
 
         blobs = CBlobResult(moggedAndSmoothed, NULL, 0);
         blobs.Filter(blobs, B_EXCLUDE, CBlobGetArea(), B_OUTSIDE, 
