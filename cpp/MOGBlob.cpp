@@ -26,13 +26,16 @@ using namespace cv;
 #define DILATED_IND 8
 #define BG_AND_COLOR_IND 9
 #define THRESH_IND 10
+#define COLOR_DILATED 11
 
 static String frameNames[] = 
     {"Capture", "Blurred", "HSV", "InRange", "BG Subtracted", "Reblurred", 
         "Blobs", "BGSub&Eroded", "BGSub&Dilated", "BGSub AND color",
-        "Thresholded BGSub"};
+        "Thresholded BGSub", "Color filter dilated"};
 /* Only the frames we want displayed */
-static int windows[] = {0, 3, 9, 10};
+static int windows[] = {CAPTURE_IND, 
+    COLOR_FILTER_IND,
+    BLOBS_IND};
 #define NUM_FRAMES (sizeof(frameNames) / sizeof(frameNames[0]))
 #define NUM_WINDOWS (sizeof(windows) / sizeof(windows[0]))
 
@@ -105,32 +108,38 @@ int main()
 
         frames[CAPTURE_IND] = image.clone();
 
+        Mat dilate_elem = getStructuringElement(MORPH_ELLIPSE,
+                Size(10, 10), Point(-1, -1));
         
         medianBlur(frames[CAPTURE_IND], frames[BLURRED_IND], 3);
         mog(frames[BLURRED_IND], frames[BG_SUB_IND], -1);
         erode(frames[BG_SUB_IND], frames[ERODED_IND], Mat());
-        dilate(frames[ERODED_IND], frames[DILATED_IND], Mat());
-        threshold(frames[DILATED_IND], frames[THRESH_IND], 128, 255, 
+        dilate(frames[ERODED_IND], frames[ERODED_IND], dilate_elem);
+        threshold(frames[ERODED_IND], frames[THRESH_IND], 128, 255, 
                 THRESH_BINARY);
 
         cvtColor(frames[BLURRED_IND], frames[HSV_IND], CV_BGR2HSV);
         inRange(frames[HSV_IND], Scalar(50, 50, 70), 
                 Scalar(100, 160, 200), frames[COLOR_FILTER_IND]);
+        erode(frames[COLOR_FILTER_IND], frames[COLOR_FILTER_IND], Mat());
+        dilate(frames[COLOR_FILTER_IND], frames[COLOR_DILATED], 
+                dilate_elem);
 
-        bitwise_and(frames[THRESH_IND], frames[COLOR_FILTER_IND], 
+        bitwise_and(frames[THRESH_IND], frames[COLOR_DILATED], 
                frames[BG_AND_COLOR_IND]);
+        dilate(frames[BG_AND_COLOR_IND], frames[DILATED_IND], dilate_elem);
 	
 	    // Get blobs
         CBlobResult blobs;
 
 	    // We need to copy over the filtered frame for the CBlobResult()
-        CvMat copy(frames[COLOR_FILTER_IND]);
+        CvMat copy(frames[DILATED_IND]);
         cvCopy(&copy, moggedAndSmoothed);
         cvMerge(&copy, &copy, &copy, NULL, blobImage);
 
         blobs = CBlobResult(moggedAndSmoothed, NULL, 0);
         blobs.Filter(blobs, B_EXCLUDE, CBlobGetArea(), B_OUTSIDE, 
-                100, 250);
+                50, 500);
 
         for (int i = 0; i < blobs.GetNumBlobs(); i++)
         {
