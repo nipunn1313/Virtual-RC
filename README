@@ -7,7 +7,22 @@ installing it on Ubuntu here:
 
 https://help.ubuntu.com/community/OpenCV
 
+Requires tons of libraries. At least(!):
+	OpenCV 2.7 (anything before doesn't have BackgroundMOGSubtractor2)
+	libboost1.46-dev
+	libbost1.46-all-dev
+	libpython2.7 (compiling from source is hard! Find the repo if you can
+			and install using aptitude)
+	cvbloblibs8.3 (need to compile from source. Compile with -fPIC (modify
+				Makefile))
+
+For running the tracker, use the Makefile in cpp. In the python interpreter:
+import MOGBlob
+MOGBlob.init_tracker
+
 =======================================================================
+==============TODO: This is outdated==============
+
 There are a few parts to our algorithm:
 lkdemo.py
 	-OpenCVExample
