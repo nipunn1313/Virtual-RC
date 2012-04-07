@@ -58,7 +58,9 @@ void HSVMouseCallback(int event, int x, int y, int flags, void *frame_p)
     std::cout << "HSVColor=" << color << std::endl;
 }
 
-int main()
+int num=0;
+
+void* cap_thr(void* arg)
 {
     puts("***Initializing capture***\n");
 
@@ -163,6 +165,31 @@ int main()
         }
 
         waitKey(1);
+        num++;
     }
+
+    return 0;
+}
+
+int main() {
+    cap_thr(NULL);
+}
+
+#include <boost/python.hpp>
+using namespace boost::python;
+
+void init_tracker() {
+    pthread_t thr;
+
+    pthread_create(&thr, NULL, cap_thr, NULL);
+}
+
+tuple get_curr_loc() {
+    return make_tuple(num, num);
+}
+
+BOOST_PYTHON_MODULE(MOGBlob) {
+    def("init_tracker", init_tracker);
+    def("get_curr_loc", get_curr_loc);
 }
 
