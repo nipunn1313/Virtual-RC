@@ -46,16 +46,19 @@ def calibrate(surface):
 
 if __name__ == '__main__':
     pygame.init();
+
     window = pygame.display.set_mode(display_dims);
     pygame.display.set_caption(title);
 
     screen = pygame.display.get_surface();
     race_surf = pygame.image.load(track_img_fn);
 
+    # Enable mousebuttondown event. Need to disable all others before enabling
+    # it to prevent other events from firing.
     pygame.event.set_allowed(None);
     pygame.event.set_allowed([MOUSEBUTTONDOWN, QUIT]);
 
-    #Do Calibration
+    # Do Calibration
     trnFn = calibrate(race_surf);
     print "Transformation is:"
     print trnFn.To_Str()
