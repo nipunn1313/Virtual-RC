@@ -34,6 +34,7 @@ static String frameNames[] =
         "Thresholded BGSub", "Color filter dilated"};
 /* Only the frames we want displayed */
 static int windows[] = {CAPTURE_IND, 
+    THRESH_IND,
     COLOR_FILTER_IND,
     BLOBS_IND};
 #define NUM_FRAMES (sizeof(frameNames) / sizeof(frameNames[0]))
@@ -57,8 +58,6 @@ void HSVMouseCallback(int event, int x, int y, int flags, void *frame_p)
     hsv_color color = mat_p->at<hsv_color>(y,x);
     std::cout << "HSVColor=" << color << std::endl;
 }
-
-int num=0;
 
 void* cap_thr(void* arg)
 {
@@ -121,8 +120,8 @@ void* cap_thr(void* arg)
                 THRESH_BINARY);
 
         cvtColor(frames[BLURRED_IND], frames[HSV_IND], CV_BGR2HSV);
-        inRange(frames[HSV_IND], Scalar(50, 50, 70), 
-                Scalar(100, 160, 200), frames[COLOR_FILTER_IND]);
+        inRange(frames[HSV_IND], Scalar(60, 50, 70), 
+                Scalar(130, 160, 200), frames[COLOR_FILTER_IND]);
         erode(frames[COLOR_FILTER_IND], frames[COLOR_FILTER_IND], Mat());
         dilate(frames[COLOR_FILTER_IND], frames[COLOR_DILATED], 
                 dilate_elem);
@@ -165,7 +164,6 @@ void* cap_thr(void* arg)
         }
 
         waitKey(1);
-        num++;
     }
 
     return 0;
@@ -179,13 +177,19 @@ int main() {
 using namespace boost::python;
 
 void init_tracker() {
+    static int already_initted=0;
     pthread_t thr;
 
-    pthread_create(&thr, NULL, cap_thr, NULL);
+    if (! already_initted) {
+        already_initted = 1;
+        pthread_create(&thr, NULL, cap_thr, NULL);
+    } else {
+        std::cout << "Tracker is already initialized";
+    }
 }
 
 tuple get_curr_loc() {
-    return make_tuple(num, num);
+    return make_tuple(69, 69);
 }
 
 BOOST_PYTHON_MODULE(MOGBlob) {
