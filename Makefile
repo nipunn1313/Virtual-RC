@@ -10,11 +10,12 @@ all: tracker game
 
 tracker: $(TRACKER_DIR)/MOGBlob.cpp
 	$(CC) -o MOGBlob $(TRACKER_DIR)/MOGBlob.cpp $(CC_FLAGS)
-	$(CC) $(CC_FLAGS) -fPIC -shared -o $(LIB_DIR)/MOGBlob.so \
-		$(TRACKER_DIR)/MOGBlob.cpp
+	$(CC) -fPIC -shared -o $(LIB_DIR)/MOGBlob.so \
+		$(TRACKER_DIR)/MOGBlob.cpp $(CC_FLAGS)
 
 game: $(GAME_DIR)/game.py
-	cp $(GAME_DIR)/game.py .
+	rm -f game.py
+	ln -s $(GAME_DIR)/game.py
 
 clean:
 	rm -f game.py game.pyc $(LIB_DIR)/* MOGBlob
