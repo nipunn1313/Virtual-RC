@@ -7,7 +7,7 @@ from pygame.locals import *;
 from affine import Affine_Fit
 
 title = 'Virtual RC'
-display_dims = (1200,800);
+display_dims = (600,900);
 track_img_fn = 'racetrack.png'
 calibrate_img_fn = 'arrow.png'
 
@@ -51,7 +51,8 @@ if __name__ == '__main__':
     pygame.display.set_caption(title);
 
     screen = pygame.display.get_surface();
-    race_surf = pygame.image.load(track_img_fn);
+    race_surf_full = pygame.image.load(track_img_fn);
+    race_surf = pygame.transform.scale(race_surf_full, display_dims);
 
     # Enable mousebuttondown event. Need to disable all others before enabling
     # it to prevent other events from firing.
