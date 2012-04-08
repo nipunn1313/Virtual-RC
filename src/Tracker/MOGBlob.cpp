@@ -13,6 +13,8 @@
 #include <iostream>
 #include <stdio.h>
 
+#include "CycleTimer.h"
+
 using namespace cv;
 
 #define CAPTURE_IND 0
@@ -47,16 +49,23 @@ using namespace cv;
 // switch to static_loc_car()
 #define STATIC_LOC_THRESHOLD 1
 
+#define GOING_FOR_SPEED "YEAH"
+
 static String frameNames[] = 
     {"Capture", "Blurred", "HSV", "InRange", "BG Subtracted", "Dynamic Blobs",
         "Blobs", "BGSub&Eroded", "BGSub&Dilated", "BGSub AND color",
         "Thresholded BGSub", "Color filter dilated"};
 /* Only the frames we want displayed */
+#ifdef GOING_FOR_SPEED
+static int windows[] = {CAPTURE_IND};
+#else
 static int windows[] = {CAPTURE_IND, 
                         //THRESH_IND,
                         COLOR_FILTER_IND,
-                        DILATED_IND,
-                        BLOBS_IND};
+                        //COLOR_DILATED,
+                        BLOBS_IND
+                        };
+#endif
 
 // Globals for tracking logic
 static int immobile_frame_count = 0;
@@ -73,6 +82,9 @@ static pthread_cond_t click_cond;
 static int need_click_xy = 0;
 static int click_x = 0;
 static int click_y = 0;
+
+IplImage *temp_IPL_8U_1;
+IplImage *temp_IPL_8U_3;
 
 struct hsv_color
 {
@@ -122,6 +134,7 @@ void HSVAndSizeMouseCallback(int event, int x, int y, int flags, void *frame_p)
     // and bottom right corner). Remember that top left of image is (0,0)
     if (event == CV_EVENT_RBUTTONDOWN)
     {
+        exit(0);
         // First click for top left corner of rectangle
         if (click_parity == 0)
         {
@@ -141,7 +154,7 @@ void HSVAndSizeMouseCallback(int event, int x, int y, int flags, void *frame_p)
 // Generates blob_image and blobs
 void locate_car_core(Mat *frame, IplImage *blob_image, CBlobResult *blobs_p)
 {
-    IplImage *frame_as_image = cvCreateImage((*frame).size(), IPL_DEPTH_8U, 1);
+    IplImage *frame_as_image = temp_IPL_8U_1;
 
     CvMat copy(*frame);
     cvCopy(&copy, frame_as_image);
@@ -206,8 +219,7 @@ IplImage* find_and_draw_best_blob(CBlobResult blobs, IplImage *blob_image,
 IplImage* static_loc_car(Mat *color_frame)
 {
     CBlobResult blobs;
-    IplImage *blob_image =
-        cvCreateImage((*color_frame).size(), IPL_DEPTH_8U, 3);
+    IplImage *blob_image = temp_IPL_8U_3;
 
     locate_car_core(color_frame, blob_image, &blobs);
 
@@ -224,8 +236,7 @@ IplImage* static_loc_car(Mat *color_frame)
 IplImage* dynamic_loc_car(Mat *bit_anded_frame)
 {
     CBlobResult blobs;
-    IplImage *blob_image =
-        cvCreateImage((*bit_anded_frame).size(), IPL_DEPTH_8U, 3);
+    IplImage *blob_image = temp_IPL_8U_3;
 
     locate_car_core(bit_anded_frame, blob_image, &blobs);
 
@@ -306,10 +317,35 @@ void* cap_thr(void* arg)
     Mat erode_elem = getStructuringElement(MORPH_RECT,
             Size(7, 7), Point(-1, -1));
 
+    temp_IPL_8U_1 = cvCreateImage(image.size(), IPL_DEPTH_8U, 1);
+    temp_IPL_8U_3 = cvCreateImage(image.size(), IPL_DEPTH_8U, 3);
+
+    double t = CycleTimer::currentSeconds();
+    double latency_t = CycleTimer::currentSeconds();
+    double tot_tp = 0;
+    double tot_lat = 0;
+    int timer_cnt = 0;
+
     for (;;)
     {
+        /* Do timing stuff */
+        double newt = CycleTimer::currentSeconds();
+        tot_tp += (newt - t);
+        tot_lat += (newt - latency_t);
+        t = newt;
+        if ((++timer_cnt) % 16 == 0)
+        {
+            std::cout << "FPS (Throughput)=" << (16 / tot_tp) 
+                << "\n";
+            std::cout << "Frame Latency =" << (tot_lat / 16) 
+                << "\n";
+            tot_tp = tot_lat = 0;
+        }
+
         cap >> image;
         if (image.empty()) break;
+        
+        latency_t = CycleTimer::currentSeconds();
 
         //num_frames++;
 
@@ -397,6 +433,7 @@ static void init_stuff()
 
     // Lock for the car's position variables
     pthread_mutex_init(&loc_mx, NULL);
+        
 }
 
 int main()
