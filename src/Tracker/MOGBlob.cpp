@@ -28,13 +28,24 @@ using namespace cv;
 #define THRESH_IND 10
 #define COLOR_DILATED 11
 
-#define STATIC_FRAME_THRESHOLD 1
-
 #define NUM_FRAMES (sizeof(frameNames) / sizeof(frameNames[0]))
 #define NUM_WINDOWS (sizeof(windows) / sizeof(windows[0]))
 
 // Size of a car blob in pixels
-#define CAR_BLOB_SIZE 3000
+#define CAR_BLOB_SIZE_MIN 1000
+#define CAR_BLOB_SIZE_MAX 5500
+
+#define DIST_SQUARED(x1, y1, x2, y2) (((x2) - (x1))*((x2) - (x1)) + \
+                                      ((y2) - (y1))*((y2) - (y1)))
+
+// Location of new blob must be less than this far from the previously
+// known location in pixels
+// TODO: Why does this need to be so high
+#define CAR_MAX_DIST_SQUARED 500000
+
+// Number of frames that dynamic_loc_car() has failed to find the car before we
+// switch to static_loc_car()
+#define STATIC_LOC_THRESHOLD 1
 
 static String frameNames[] = 
     {"Capture", "Blurred", "HSV", "InRange", "BG Subtracted", "Dynamic Blobs",
@@ -44,15 +55,18 @@ static String frameNames[] =
 static int windows[] = {CAPTURE_IND, 
                         //THRESH_IND,
                         COLOR_FILTER_IND,
-                        //COLOR_DILATED,
+                        DILATED_IND,
                         BLOBS_IND};
+
+// Globals for tracking logic
+static int immobile_frame_count = 0;
+static bool is_car_missing = false;
 
 // Known location of the car. Need a mutex to lock around read/write access of
 // these globals
 static pthread_mutex_t loc_mx;
 static float car_x = 0;
 static float car_y = 0;
-static bool use_static = false;
 
 static pthread_mutex_t click_mx;
 static pthread_cond_t click_cond;
@@ -136,7 +150,57 @@ void locate_car_core(Mat *frame, IplImage *blob_image, CBlobResult *blobs_p)
     *blobs_p = CBlobResult(frame_as_image, NULL, 0);
 
     blobs_p->Filter(*blobs_p, B_EXCLUDE, CBlobGetArea(), B_OUTSIDE,
-            CAR_BLOB_SIZE - 2000, CAR_BLOB_SIZE + 2000);
+            CAR_BLOB_SIZE_MIN, CAR_BLOB_SIZE_MAX);
+}
+
+IplImage* find_and_draw_best_blob(CBlobResult blobs, IplImage *blob_image, 
+                                  CvScalar blob_color)
+{
+    // Mark first blob as best candidate (doing it here makes code cleaner)
+    CBlob *best_blob = blobs.GetBlob(0);
+    float best_blob_x = best_blob->GetEllipse().center.x;
+    float best_blob_y = best_blob->GetEllipse().center.y;
+    float min_dist = DIST_SQUARED(best_blob_x, car_x, best_blob_y, car_y);
+
+    // Found too many blobs. Pick the best one based on proximity to 
+    // previous car location
+    if (blobs.GetNumBlobs() > 1)   
+    {
+        for (int blobNum = 1; blobNum < blobs.GetNumBlobs(); blobNum++)
+        {
+            CBlob *curr_blob = blobs.GetBlob(blobNum);
+            float curr_blob_x = curr_blob->GetEllipse().center.x;
+            float curr_blob_y = curr_blob->GetEllipse().center.y;
+            float curr_dist = DIST_SQUARED(car_x, curr_blob_x, 
+                    car_y, curr_blob_y);
+
+            if (curr_dist < min_dist && curr_dist < CAR_MAX_DIST_SQUARED)
+            {
+                best_blob = curr_blob;
+                best_blob_x = curr_blob_x;
+                best_blob_y = curr_blob_y;
+                min_dist = curr_dist;
+            }
+        }
+    }
+
+    // The best blob is too far!
+    if (min_dist >= CAR_MAX_DIST_SQUARED)
+    {
+        return NULL;
+    }
+    else
+    {
+        // Update global location variables
+        pthread_mutex_lock(&loc_mx);
+        car_x = best_blob_x;
+        car_y = best_blob_y;
+        pthread_mutex_unlock(&loc_mx);
+
+        // Color it
+        best_blob->FillBlob(blob_image, blob_color);
+        return blob_image;
+    }
 }
 
 IplImage* static_loc_car(Mat *color_frame)
@@ -147,71 +211,42 @@ IplImage* static_loc_car(Mat *color_frame)
 
     locate_car_core(color_frame, blob_image, &blobs);
 
-    for (int i = 0; i < blobs.GetNumBlobs(); i++)
+    if (blobs.GetNumBlobs() == 0)
     {
-        CBlob *currentBlob;
-        currentBlob = blobs.GetBlob(i);
-        currentBlob->FillBlob(blob_image, CV_RGB(0, 0, 255));
-
-        CvPoint2D32f center = currentBlob->GetEllipse().center;
-        pthread_mutex_lock(&loc_mx);
-        car_x = center.x;
-        car_y = center.y;
-        pthread_mutex_unlock(&loc_mx);
-        //std::cout << center << std::endl;
+        return NULL;
     }
-
-    return blob_image;
+    else
+    {
+        return find_and_draw_best_blob(blobs, blob_image, CV_RGB(0, 0, 255));
+    }
 }
 
 IplImage* dynamic_loc_car(Mat *bit_anded_frame)
 {
-    static int missing_car_frame_count = 0;
-
     CBlobResult blobs;
     IplImage *blob_image =
         cvCreateImage((*bit_anded_frame).size(), IPL_DEPTH_8U, 3);
 
     locate_car_core(bit_anded_frame, blob_image, &blobs);
 
-    for (int i = 0; i < blobs.GetNumBlobs(); i++)
-    {
-        CBlob *currentBlob;
-        currentBlob = blobs.GetBlob(i);
-        currentBlob->FillBlob(blob_image, CV_RGB(0, 255, 0));
-
-        // Reset the number of frames that the car has been missing in
-        // dynamic_loc_car(). We always add to this after the loop
-        missing_car_frame_count = -1;
-
-        // TODO: add logic. For now, we just assign the last blob's center value
-        // to car_x and car_y. If not here, then in static_loc_car. If it fails
-        // there then we just leave the old value for now.
-        CvPoint2D32f center = currentBlob->GetEllipse().center;
-        pthread_mutex_lock(&loc_mx);
-        car_x = center.x;
-        car_y = center.y;
-        pthread_mutex_unlock(&loc_mx);
-        //std::cout << center << std::endl;
-    }
-
-    // Sort of hacky. We always set it to -1 in the loop so it'll be 0 if it was
-    // found in this frame
-    missing_car_frame_count++;
-
-    if (missing_car_frame_count > STATIC_FRAME_THRESHOLD)
+    // Didn't find any blobs of reasonable size in the anded frame
+    if (blobs.GetNumBlobs() == 0)
     {
         return NULL;
     }
-    else
+    else 
     {
-        return blob_image;
+        return find_and_draw_best_blob(blobs, blob_image, CV_RGB(0, 255, 0));
     }
 }
 
 // Main function for tracking
 void* cap_thr(void* arg)
 {
+    // TODO: For testing. Remove
+    //int num_frames = 0;
+    //int frames_failed = 0;
+    
     puts("***Initializing capture***\n");
 
     VideoCapture cap;
@@ -231,7 +266,7 @@ void* cap_thr(void* arg)
     }
 
     // Initialize video capture settings
-    //cap.set(CV_CAP_PROP_BRIGHTNESS, .60);
+    //cap.set(CV_CAP_PROP_BRIGHTNESS, .40);
     //cap.set(CV_CAP_PROP_SATURATION, .08);
     //cap.set(CV_CAP_PROP_CONTRAST, .07);
 
@@ -240,16 +275,22 @@ void* cap_thr(void* arg)
     Mat frames[NUM_FRAMES]; /* Frames for each stage */
 
     // Create windows
-    for (int i = 0; i < NUM_WINDOWS; i++)
+    for (unsigned int i = 0; i < NUM_WINDOWS; i++)
     {
-        int frame = windows[i];
-        namedWindow(frameNames[frame], CV_WINDOW_AUTOSIZE);
+        int frame_ind = windows[i];
+        namedWindow(frameNames[frame_ind], CV_WINDOW_AUTOSIZE);
 
         // Mouse callback for HSV. Callback takes
-        if (frame == CAPTURE_IND)
+        if (frame_ind == CAPTURE_IND)
         {
-            setMouseCallback(frameNames[CAPTURE_IND], HSVAndSizeMouseCallback, 
-                    &frames[HSV_IND]);
+            setMouseCallback(frameNames[CAPTURE_IND], 
+                             HSVAndSizeMouseCallback, &frames[HSV_IND]);
+        }
+        // Need to initialize BLOBS_IND frame since loc_car() usually returns
+        // NULL at first
+        if (frame_ind == BLOBS_IND)
+        {
+            frames[frame_ind] = image;
         }
     }
     
@@ -257,17 +298,20 @@ void* cap_thr(void* arg)
 
     puts("***Done initializing capture***\n");
     
-    Mat dilate_elem_norm = getStructuringElement(MORPH_ELLIPSE,
+    // Structuring elements for dilation and erosion
+    Mat dilate_elem_norm = getStructuringElement(MORPH_RECT,
             Size(15, 15), Point(-1, -1));
-    Mat dilate_elem_huge = getStructuringElement(MORPH_ELLIPSE,
-            Size(25, 25), Point(-1, -1));
+    Mat dilate_elem_huge = getStructuringElement(MORPH_RECT,
+            Size(20, 20), Point(-1, -1));
     Mat erode_elem = getStructuringElement(MORPH_RECT,
-            Size(5, 5), Point(-1, -1));
+            Size(7, 7), Point(-1, -1));
 
     for (;;)
     {
         cap >> image;
         if (image.empty()) break;
+
+        //num_frames++;
 
         frames[CAPTURE_IND] = image.clone();
         
@@ -280,8 +324,8 @@ void* cap_thr(void* arg)
 
         // Color filter (yellow)
         cvtColor(frames[BLURRED_IND], frames[HSV_IND], CV_BGR2HSV);
-        inRange(frames[HSV_IND], Scalar(20, 35, 150), 
-                Scalar(45, 90, 255), frames[COLOR_FILTER_IND]);
+        inRange(frames[HSV_IND], Scalar(20, 40, 120), 
+                Scalar(40, 130, 255), frames[COLOR_FILTER_IND]);
         // Erode noise away and then dilate it before anding
         erode(frames[COLOR_FILTER_IND], frames[COLOR_FILTER_IND], erode_elem);
         dilate(frames[COLOR_FILTER_IND], frames[COLOR_DILATED], 
@@ -294,23 +338,37 @@ void* cap_thr(void* arg)
 
         // Get blobs
         IplImage *blobImage;
-        if (use_static == false)
-        {
-            blobImage = dynamic_loc_car(&frames[DILATED_IND]);
+        // First try dynamic
+        blobImage = dynamic_loc_car(&frames[DILATED_IND]);
 
-            if (blobImage == NULL)
+        if (blobImage == NULL)
+        {
+            immobile_frame_count++;
+
+            // Try static_loc_car() if dynamic has failed for too many frames
+            if (immobile_frame_count > STATIC_LOC_THRESHOLD)
             {
-                // Use static_loc_car() the next frame;
-                use_static = true;
+                blobImage = static_loc_car(&frames[COLOR_DILATED]);
+
+                if (blobImage == NULL)
+                {
+                    // We failed to find it with both location functions!
+                    is_car_missing = true;
+                    //std::cout << "Car is missing" << std::endl;
+                }
+                else
+                {
+                    // We found the car statically
+                    is_car_missing = false;
+                    immobile_frame_count = 0;
+                }
             }
         }
         else
         {
-            blobImage = static_loc_car(&frames[COLOR_DILATED]);
-            use_static = false;
+            is_car_missing = false;
+            immobile_frame_count = 0;
         }
-
-        //std::cout << car_x << "," << car_y << std::endl;
 
         // Only update if we actually got a new blob
         if (blobImage != NULL)
@@ -318,11 +376,13 @@ void* cap_thr(void* arg)
             frames[BLOBS_IND] = blobImage;
         }
 
-        for (int i=0; i<NUM_WINDOWS; i++)
+        for (unsigned int i=0; i<NUM_WINDOWS; i++)
         {
             int frame = windows[i];
             imshow(frameNames[frame], frames[frame]);
         }
+
+        //std::cout << num_frames << ", " << frames_failed << std::endl;
 
         waitKey(1);
     }

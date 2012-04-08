@@ -1,5 +1,5 @@
 CC=g++
-CC_FLAGS=`pkg-config opencv --cflags --libs` -lblob \
+CC_FLAGS=`pkg-config opencv --cflags --libs` -Wall -lblob \
 		 -I/usr/include/python2.7 -lboost_python -lpython2.7
 
 TRACKER_DIR=src/Tracker
