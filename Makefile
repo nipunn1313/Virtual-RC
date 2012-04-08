@@ -17,7 +17,7 @@ blobs:
 tracker: trackerso trackerexec 
 	
 trackerexec: $(TRACKER_DIR)/MOGBlob.cpp
-	$(CC) -o MOGBlob $(TRACKER_DIR)/MOGBlob.cpp $(CC_FLAGS)
+	$(CC) -o MOGBlob -DMULTI_DISPLAY $(TRACKER_DIR)/MOGBlob.cpp $(CC_FLAGS)
 
 trackerso: $(TRACKER_DIR)/MOGBlob.cpp
 	mkdir -p $(LIB_DIR)

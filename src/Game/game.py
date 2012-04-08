@@ -100,7 +100,7 @@ if __name__ == '__main__':
     screen.blit(race_surf, (0,0));
     pygame.display.flip();
 
-    #MOGBlob.suppress_display();
+    MOGBlob.suppress_display();
     #MOGBlob.ask_for_click();
     while True:
         # Quit on quit events

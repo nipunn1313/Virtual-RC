@@ -49,22 +49,20 @@ using namespace cv;
 // switch to static_loc_car()
 #define STATIC_LOC_THRESHOLD 1
 
-#define GOING_FOR_SPEED "YEAH"
-
 static String frameNames[] = 
     {"Capture", "Blurred", "HSV", "InRange", "BG Subtracted", "Dynamic Blobs",
         "Blobs", "BGSub&Eroded", "BGSub&Dilated", "BGSub AND color",
         "Thresholded BGSub", "Color filter dilated"};
 /* Only the frames we want displayed */
-#ifdef GOING_FOR_SPEED
-static int windows[] = {CAPTURE_IND};
-#else
+#ifdef MULTI_DISPLAY
 static int windows[] = {CAPTURE_IND, 
                         //THRESH_IND,
                         COLOR_FILTER_IND,
                         //COLOR_DILATED,
                         BLOBS_IND
                         };
+#else
+static int windows[] = {CAPTURE_IND};
 #endif
 
 // Globals for tracking logic
