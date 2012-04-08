@@ -12,9 +12,9 @@ sys.path.append(os.getcwd() + '/lib');
 import MOGBlob;
 
 # These are the imports necessary for sending speed to the cars
-#import xbee;
-#import serial;
-#from speedsender import SpeedSender
+import xbee;
+import serial;
+from speedsender import SpeedSender
 
 title = 'Virtual RC'
 display_dims = (900,600);
@@ -22,6 +22,10 @@ camsize = (640,480);
 img_dir = 'Images/'
 track_img_fn = img_dir + 'racetrack.png'
 calibrate_img_fn = img_dir + 'arrow.png'
+
+brown = (45,  4,   4,   255)
+grey  = (102, 106, 102, 255)
+black = (0,   0,   0,   255)
 
 def inScreen(pos):
     (x,y) = pos;
@@ -76,9 +80,9 @@ if __name__ == '__main__':
 #pygame.event.set_allowed([MOUSEBUTTONDOWN, QUIT]);
 
 	# Initialize the speed sender thread for car1, with a 1.0 second interval
-#	xbeeSender = xbee.XBee(serial.Serial('/dev/ttyUSB0', 9600))
-#	car1 = SpeedSender.forXBee(1.000, xbeeSender, SpeedSender.DEST2)
-#	car1.start()
+    xbeeSender = xbee.XBee(serial.Serial('/dev/ttyUSB0', 9600))
+    car1 = SpeedSender.forXBee(1.000, xbeeSender, SpeedSender.DEST2)
+    car1.start()
 
     # Initialize MOGBlob code
     MOGBlob.init_tracker();
@@ -118,17 +122,17 @@ if __name__ == '__main__':
                 color = 'Not in screen'
             print ('CarPos=%s CarTrnPos=%s Color=%s' %
                    (pos, trnpos, color));
-			# Below is a prototype for how the car's speed can be changed
-			# in response to what color it's on
-#			if color == TRACK:
-#				car1.changeSpeed(NORM)
-#			elif color == OFF_TRACK:
-#				car1.changeSpeed(SLOW)
-#			elif color == 'Not in screen'
-#				car1.changeSpeed(STOP)
-#			else
-#				car1.changeSpeed(STOP)
+            # Below is a prototype for how the car's speed can be changed
+            # in response to what color it's on
+            if color == grey:
+                car1.changeSpeed(SpeedSender.NORM)
+            elif color == brown:
+                car1.changeSpeed(SpeedSender.SLOW)
+            elif color == black:
+                car1.changeSpeed(SpeedSender.NORM)
+            else:
+                car1.changeSpeed(SpeedSender.STOP)
 
-			# Ask for more!
+            # Ask for more!
             MOGBlob.ask_for_click();
 
