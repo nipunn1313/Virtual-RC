@@ -15,6 +15,7 @@ blobs:
 	cd $(BLOBS_DIR) ; test -f libblob.a || make
 
 tracker: $(TRACKER_DIR)/MOGBlob.cpp
+	mkdir -p $(LIB_DIR)
 	$(CC) -o MOGBlob $(TRACKER_DIR)/MOGBlob.cpp $(CC_FLAGS)
 	$(CC) -fPIC -shared -o $(LIB_DIR)/MOGBlob.so \
 		$(TRACKER_DIR)/MOGBlob.cpp $(CC_FLAGS)
