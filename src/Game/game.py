@@ -17,7 +17,7 @@ import serial;
 from speedsender import SpeedSender
 
 title = 'Virtual RC'
-display_dims = (900,600);
+display_dims = (1170,780);
 camsize = (640,480);
 img_dir = 'Images/'
 track_img_fn = img_dir + 'racetrack.png'
@@ -100,7 +100,8 @@ if __name__ == '__main__':
     screen.blit(race_surf, (0,0));
     pygame.display.flip();
 
-    MOGBlob.ask_for_click();
+    #MOGBlob.suppress_display();
+    #MOGBlob.ask_for_click();
     while True:
         # Quit on quit events
         events = pygame.event.get();
@@ -108,20 +109,21 @@ if __name__ == '__main__':
             print event
             if event.type == QUIT:
                 pygame.display.quit();
+                MOGBlob.destroy_tracker();
                 sys.exit(0);
 
         pos = MOGBlob.get_curr_loc();
         # On click, get curr loc and display!
-        clickpos = MOGBlob.get_click_loc();
-        if clickpos and pos:
+        # clickpos = MOGBlob.get_click_loc();
+        if pos:
             (tx,ty) = trnFn.Transform(pos);
             trnpos = (int(tx), int(ty));
             if inScreen(trnpos):
                 color = screen.get_at(trnpos);
             else:
                 color = 'Not in screen'
-            print ('CarPos=%s CarTrnPos=%s Color=%s' %
-                   (pos, trnpos, color));
+            #print ('CarPos=%s CarTrnPos=%s Color=%s' %
+                   #(pos, trnpos, color));
             # Below is a prototype for how the car's speed can be changed
             # in response to what color it's on
             if color == grey:
@@ -131,8 +133,9 @@ if __name__ == '__main__':
             elif color == black:
                 car1.changeSpeed(SpeedSender.NORM)
             else:
-                car1.changeSpeed(SpeedSender.STOP)
+                car1.changeSpeed(SpeedSender.SLOW)
+                #car1.changeSpeed(SpeedSender.STOP)
 
             # Ask for more!
-            MOGBlob.ask_for_click();
+            # MOGBlob.ask_for_click();
 

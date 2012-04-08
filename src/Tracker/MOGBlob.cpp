@@ -49,7 +49,7 @@ using namespace cv;
 // switch to static_loc_car()
 #define STATIC_LOC_THRESHOLD 1
 
-//#define GOING_FOR_SPEED "YEAH"
+#define GOING_FOR_SPEED "YEAH"
 
 static String frameNames[] = 
     {"Capture", "Blurred", "HSV", "InRange", "BG Subtracted", "Dynamic Blobs",
@@ -85,6 +85,8 @@ static int click_y = 0;
 
 IplImage *temp_IPL_8U_1;
 IplImage *temp_IPL_8U_3;
+
+static int supp_disp = 0;
 
 struct hsv_color
 {
@@ -414,10 +416,13 @@ void* cap_thr(void* arg)
             frames[BLOBS_IND] = blobImage;
         }
 
-        for (unsigned int i=0; i<NUM_WINDOWS; i++)
+        if (! supp_disp)
         {
-            int frame = windows[i];
-            imshow(frameNames[frame], frames[frame]);
+            for (unsigned int i=0; i<NUM_WINDOWS; i++)
+            {
+                int frame = windows[i];
+                imshow(frameNames[frame], frames[frame]);
+            }
         }
 
         //std::cout << num_frames << ", " << frames_failed << std::endl;
@@ -447,9 +452,9 @@ int main()
 #include <boost/python.hpp>
 using namespace boost::python;
 
+static int already_initted=0;
 void init_tracker()
 {
-    static int already_initted=0;
     pthread_t thr;
 
     if (! already_initted) 
@@ -462,6 +467,11 @@ void init_tracker()
     {
         std::cout << "Tracker is already initialized";
     }
+}
+
+void destroy_tracker()
+{
+    exit(0);
 }
 
 void ask_for_click()
@@ -497,11 +507,18 @@ tuple get_curr_loc()
     return make_tuple(x, y);
 }
 
+void suppress_display()
+{
+    supp_disp = 1;
+}
+
 BOOST_PYTHON_MODULE(MOGBlob)
 {
     def("init_tracker", init_tracker);
+    def("destroy_tracker", destroy_tracker);
     def("get_curr_loc", get_curr_loc);
     def("ask_for_click", ask_for_click);
+    def("suppress_display", suppress_display);
     def("get_click_loc", get_click_loc);
 }
 
