@@ -2,13 +2,13 @@
 #include "opencv2/imgproc/imgproc.hpp"
 #include "opencv2/video/background_segm.hpp"
 #include "opencv2/video/tracking.hpp"
-#include "cvblob/BlobContour.h"
-#include "cvblob/blob.h"
-#include "cvblob/BlobLibraryConfiguration.h"
-#include "cvblob/BlobOperators.h"
-#include "cvblob/BlobProperties.h"
-#include "cvblob/BlobResult.h"
-#include "cvblob/ComponentLabeling.h"
+#include "BlobContour.h"
+#include "blob.h"
+#include "BlobLibraryConfiguration.h"
+#include "BlobOperators.h"
+#include "BlobProperties.h"
+#include "BlobResult.h"
+#include "ComponentLabeling.h"
 
 #include <iostream>
 #include <stdio.h>
