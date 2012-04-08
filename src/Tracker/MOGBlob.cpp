@@ -51,6 +51,12 @@ static int windows[] = {CAPTURE_IND,
 static float car_x = 0;
 static float car_y = 0;
 
+static pthread_mutex_t click_mx;
+static pthread_cond_t click_cond;
+static int need_click_xy = 0;
+static int click_x = 0;
+static int click_y = 0;
+
 struct hsv_color
 {
     uchar h;
@@ -82,6 +88,15 @@ void HSVAndSizeMouseCallback(int event, int x, int y, int flags, void *frame_p)
     // Print HSV values at (x,y) (assumes frame_p is the HSV frame)
     if (event == CV_EVENT_LBUTTONDOWN)
     {
+        pthread_mutex_lock(&click_mx);
+        if (need_click_xy)
+        {
+            click_x = x;
+            click_y = y;
+            need_click_xy = 0;
+        }
+        pthread_mutex_unlock(&click_mx);
+
         hsv_color color = mat_p->at<hsv_color>(y,x);
         std::cout << "HSVColor=" << color << std::endl;
     }
@@ -286,8 +301,15 @@ void* cap_thr(void* arg)
     return 0;
 }
 
+static void init_stuff()
+{
+    pthread_mutex_init(&click_mx, NULL);
+    pthread_cond_init(&click_cond, NULL);
+}
+
 int main()
 {
+    init_stuff();
     cap_thr(NULL);
 }
 
@@ -302,12 +324,34 @@ void init_tracker()
     if (! already_initted) 
     {
         already_initted = 1;
+        init_stuff();
         pthread_create(&thr, NULL, cap_thr, NULL);
     } 
     else
     {
         std::cout << "Tracker is already initialized";
     }
+}
+
+void ask_for_click()
+{
+    need_click_xy = 1;
+}
+
+tuple get_click_loc()
+{
+    tuple xy;
+
+    /* Set the need for a click loc and
+       spin on it */
+    pthread_mutex_lock(&click_mx);
+    if (need_click_xy)
+        xy = tuple();
+    else
+        xy = make_tuple(click_x, click_y);
+    pthread_mutex_unlock(&click_mx);
+
+    return xy;
 }
 
 tuple get_curr_loc()
@@ -319,5 +363,7 @@ BOOST_PYTHON_MODULE(MOGBlob)
 {
     def("init_tracker", init_tracker);
     def("get_curr_loc", get_curr_loc);
+    def("ask_for_click", ask_for_click);
+    def("get_click_loc", get_click_loc);
 }
 
