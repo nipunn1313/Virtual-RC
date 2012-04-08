@@ -49,7 +49,7 @@ using namespace cv;
 // switch to static_loc_car()
 #define STATIC_LOC_THRESHOLD 1
 
-#define GOING_FOR_SPEED "YEAH"
+//#define GOING_FOR_SPEED "YEAH"
 
 static String frameNames[] = 
     {"Capture", "Blurred", "HSV", "InRange", "BG Subtracted", "Dynamic Blobs",
@@ -329,6 +329,7 @@ void* cap_thr(void* arg)
     for (;;)
     {
         /* Do timing stuff */
+        /*
         double newt = CycleTimer::currentSeconds();
         tot_tp += (newt - t);
         tot_lat += (newt - latency_t);
@@ -341,6 +342,7 @@ void* cap_thr(void* arg)
                 << "\n";
             tot_tp = tot_lat = 0;
         }
+        */
 
         cap >> image;
         if (image.empty()) break;
