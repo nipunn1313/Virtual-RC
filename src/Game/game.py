@@ -96,23 +96,10 @@ if __name__ == '__main__':
                 pygame.display.quit();
                 sys.exit(0);
 
-        # Test clicks for transformation data
-        pos = MOGBlob.get_click_loc();
-        if pos:
-            (tx,ty) = trnFn.Transform(pos);
-            trnpos = (int(tx), int(ty));
-            if inScreen(trnpos):
-                color = screen.get_at(trnpos);
-            else:
-                color = 'Not in screen'
-            print ('ClickPos=%s ClickTrnPos=%s Color=%s' %
-                   (pos, trnpos, color));
-            # Ask for more!
-            MOGBlob.ask_for_click();
-
-        # Get curr loc and display!
-        pos = get_curr_loc();
-        if pos:
+        pos = MOGBlob.get_curr_loc();
+        # On click, get curr loc and display!
+        clickpos = MOGBlob.get_click_loc();
+        if clickpos and pos:
             (tx,ty) = trnFn.Transform(pos);
             trnpos = (int(tx), int(ty));
             if inScreen(trnpos):
@@ -121,5 +108,6 @@ if __name__ == '__main__':
                 color = 'Not in screen'
             print ('CarPos=%s CarTrnPos=%s Color=%s' %
                    (pos, trnpos, color));
-            
+            # Ask for more!
+            MOGBlob.ask_for_click();
 

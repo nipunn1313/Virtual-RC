@@ -36,16 +36,23 @@ using namespace cv;
 // Size of a car blob in pixels
 #define CAR_BLOB_SIZE 3000
 
+#define GOING_FOR_SPEED "YEAH"
+
 static String frameNames[] = 
     {"Capture", "Blurred", "HSV", "InRange", "BG Subtracted", "Dynamic Blobs",
         "Blobs", "BGSub&Eroded", "BGSub&Dilated", "BGSub AND color",
         "Thresholded BGSub", "Color filter dilated"};
 /* Only the frames we want displayed */
+#ifdef GOING_FOR_SPEED
+static int windows[] = {CAPTURE_IND};
+#else
 static int windows[] = {CAPTURE_IND, 
                         //THRESH_IND,
                         COLOR_FILTER_IND,
                         //COLOR_DILATED,
-                        BLOBS_IND};
+                        BLOBS_IND
+                        };
+#endif
 
 // Known location of the car. Need a mutex to lock around read/write access of
 // these globals
@@ -108,6 +115,7 @@ void HSVAndSizeMouseCallback(int event, int x, int y, int flags, void *frame_p)
     // and bottom right corner). Remember that top left of image is (0,0)
     if (event == CV_EVENT_RBUTTONDOWN)
     {
+        exit(0);
         // First click for top left corner of rectangle
         if (click_parity == 0)
         {
@@ -151,7 +159,9 @@ IplImage* static_loc_car(Mat *color_frame)
     {
         CBlob *currentBlob;
         currentBlob = blobs.GetBlob(i);
+#ifdef GOING_FOR_SPEED
         currentBlob->FillBlob(blob_image, CV_RGB(0, 0, 255));
+#endif
 
         CvPoint2D32f center = currentBlob->GetEllipse().center;
         pthread_mutex_lock(&loc_mx);
@@ -178,7 +188,9 @@ IplImage* dynamic_loc_car(Mat *bit_anded_frame)
     {
         CBlob *currentBlob;
         currentBlob = blobs.GetBlob(i);
+#ifdef GOING_FOR_SPEED
         currentBlob->FillBlob(blob_image, CV_RGB(0, 255, 0));
+#endif
 
         // Reset the number of frames that the car has been missing in
         // dynamic_loc_car(). We always add to this after the loop
