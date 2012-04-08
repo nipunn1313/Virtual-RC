@@ -1,12 +1,18 @@
-CC=g++ -g
-CC_FLAGS=`pkg-config opencv --cflags --libs` -lblob \
-		 -I/usr/include/python2.7 -lboost_python -lpython2.7
-
 TRACKER_DIR=src/Tracker
 GAME_DIR=src/Game
+BLOBS_DIR=src/cvblobs8.3_linux
 LIB_DIR=lib
 
-all: tracker game
+CC=g++ -O3 -g
+CC_FLAGS=`pkg-config opencv --cflags --libs` \
+		 -I$(BLOBS_DIR) -I/usr/include/python2.7 \
+		 -L$(BLOBS_DIR) \
+		 -lblob -lboost_python -lpython2.7
+
+all: blobs tracker game
+
+blobs:
+	cd $(BLOBS_DIR) ; test -f libblob.a || make
 
 tracker: $(TRACKER_DIR)/MOGBlob.cpp
 	$(CC) -o MOGBlob $(TRACKER_DIR)/MOGBlob.cpp $(CC_FLAGS)
