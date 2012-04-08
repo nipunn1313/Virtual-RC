@@ -1,4 +1,4 @@
-CC=g++ -g -pg
+CC=g++ -g
 CC_FLAGS=`pkg-config opencv --cflags --libs` -lblob \
 		 -I/usr/include/python2.7 -lboost_python -lpython2.7
 
