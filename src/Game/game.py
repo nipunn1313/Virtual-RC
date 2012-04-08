@@ -11,6 +11,11 @@ from affine import Affine_Fit;
 sys.path.append(os.getcwd() + '/lib');
 import MOGBlob;
 
+# These are the imports necessary for sending speed to the cars
+#import xbee;
+#import serial;
+#from speedsender import SpeedSender
+
 title = 'Virtual RC'
 display_dims = (900,600);
 camsize = (640,480);
@@ -70,6 +75,11 @@ if __name__ == '__main__':
 #pygame.event.set_allowed(None);
 #pygame.event.set_allowed([MOUSEBUTTONDOWN, QUIT]);
 
+	# Initialize the speed sender thread for car1, with a 1.0 second interval
+#	xbeeSender = xbee.XBee(serial.Serial('/dev/ttyUSB0', 9600))
+#	car1 = SpeedSender.forXBee(1.000, xbeeSender, SpeedSender.DEST2)
+#	car1.start()
+
     # Initialize MOGBlob code
     MOGBlob.init_tracker();
 
@@ -108,6 +118,17 @@ if __name__ == '__main__':
                 color = 'Not in screen'
             print ('CarPos=%s CarTrnPos=%s Color=%s' %
                    (pos, trnpos, color));
-            # Ask for more!
+			# Below is a prototype for how the car's speed can be changed
+			# in response to what color it's on
+#			if color == TRACK:
+#				car1.changeSpeed(NORM)
+#			elif color == OFF_TRACK:
+#				car1.changeSpeed(SLOW)
+#			elif color == 'Not in screen'
+#				car1.changeSpeed(STOP)
+#			else
+#				car1.changeSpeed(STOP)
+
+			# Ask for more!
             MOGBlob.ask_for_click();
 

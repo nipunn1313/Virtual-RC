@@ -1,5 +1,3 @@
-#!/usr/bin/python
-
 import threading
 import time
 import xbee
@@ -71,8 +69,9 @@ class SpeedSender (threading.Thread):
 	# This method can be used to change the speed of the car asynchronously
 	# from outside the thread.
 	def changeSpeed(self, speed):
-		self.speed = speed
-		self.__sendSpeed()
+		if speed != self.speed:
+			self.speed = speed
+			self.__sendSpeed()
 
 	def __sendSpeed(self):
 		global xbeeLock
@@ -94,35 +93,3 @@ class SpeedSender (threading.Thread):
 			
 			time.sleep(t1 - time.time())
 			t1 = time.time() + self.interval
-
-def serialMain():
-	thread = SpeedSender.forSerial(1.000, 0)
-	thread.start()
-
-	time.sleep(0.5)
-
-	while True:
-		thread.changeSpeed(thread.SLOW)
-		time.sleep(1.0)
-		thread.changeSpeed(thread.NORM)
-		time.sleep(1.0)
-		thread.changeSpeed(thread.FAST)
-		time.sleep(1.0)
-
-def xbeeMain():
-	xbeeSender = xbee.XBee(serial.Serial("/dev/ttyUSB1", 9600))
-	thread = SpeedSender.forXBee(1.000, xbeeSender, SpeedSender.DEST2)
-	thread.start()
-
-	time.sleep(0.5)
-
-	while True:
-		thread.changeSpeed(thread.SLOW)
-		time.sleep(1.0)
-		thread.changeSpeed(thread.NORM)
-		time.sleep(1.0)
-		thread.changeSpeed(thread.FAST)
-		time.sleep(1.0)
-	
-if __name__ == '__main__':
-	xbeeMain()
