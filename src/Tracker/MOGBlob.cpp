@@ -20,7 +20,7 @@ using namespace cv;
 #define HSV_IND 2
 #define COLOR_FILTER_IND 3
 #define BG_SUB_IND 4
-#define REBLURRED_IND 5
+#define DYN_BLOBS_IND 5
 #define BLOBS_IND 6
 #define ERODED_IND 7
 #define DILATED_IND 8
@@ -28,16 +28,26 @@ using namespace cv;
 #define THRESH_IND 10
 #define COLOR_DILATED 11
 
+#define STATIC_FRAME_THRESHOLD 1
+
 #define NUM_FRAMES (sizeof(frameNames) / sizeof(frameNames[0]))
 #define NUM_WINDOWS (sizeof(windows) / sizeof(windows[0]))
 
+// Size of a car blob in pixels
+#define CAR_BLOB_SIZE 3000
+
 static String frameNames[] = 
-    {"Capture", "Blurred", "HSV", "InRange", "BG Subtracted", "Reblurred", 
+    {"Capture", "Blurred", "HSV", "InRange", "BG Subtracted", "Dynamic Blobs",
         "Blobs", "BGSub&Eroded", "BGSub&Dilated", "BGSub AND color",
         "Thresholded BGSub", "Color filter dilated"};
 /* Only the frames we want displayed */
-static int windows[] = {CAPTURE_IND};
+static int windows[] = {CAPTURE_IND, 
+                        //THRESH_IND,
+                        //COLOR_FILTER_IND,
+                        //COLOR_DILATED,
+                        BLOBS_IND};
 
+// Known location of the car
 static float car_x = 0;
 static float car_y = 0;
 
@@ -54,6 +64,7 @@ struct hsv_color
     uchar v;
 };
 
+/* Functions for printing the HSV frame and a CvPoint2D32f */
 std::ostream& operator<<(std::ostream& o, hsv_color &c)
 {
     o << "(" << (int)c.h << "," << (int)c.s << "," << (int)c.v << ")";
@@ -66,6 +77,7 @@ std::ostream& operator<<(std::ostream& o, CvPoint2D32f &p)
     return o;
 }
 
+// Callbacks to find HSV value of a left click or the size of two right clicks
 void HSVAndSizeMouseCallback(int event, int x, int y, int flags, void *frame_p)
 {
     Mat *mat_p = (Mat *) frame_p;
@@ -109,6 +121,81 @@ void HSVAndSizeMouseCallback(int event, int x, int y, int flags, void *frame_p)
     }
 }
 
+// Generates blob_image and blobs
+void locate_car_core(Mat *frame, IplImage *blob_image, CBlobResult *blobs_p)
+{
+    IplImage *frame_as_image = cvCreateImage((*frame).size(), IPL_DEPTH_8U, 1);
+
+    CvMat copy(*frame);
+    cvCopy(&copy, frame_as_image);
+    cvMerge(&copy, &copy, &copy, NULL, blob_image);
+
+    *blobs_p = CBlobResult(frame_as_image, NULL, 0);
+
+    blobs_p->Filter(*blobs_p, B_EXCLUDE, CBlobGetArea(), B_OUTSIDE,
+            CAR_BLOB_SIZE - 2000, CAR_BLOB_SIZE + 2000);
+}
+
+IplImage* static_loc_car(Mat *color_frame)
+{
+    CBlobResult blobs;
+    IplImage *blob_image =
+        cvCreateImage((*color_frame).size(), IPL_DEPTH_8U, 3);
+
+    locate_car_core(color_frame, blob_image, &blobs);
+
+    for (int i = 0; i < blobs.GetNumBlobs(); i++)
+    {
+        CBlob *currentBlob;
+        currentBlob = blobs.GetBlob(i);
+        currentBlob->FillBlob(blob_image, CV_RGB(0, 0, 255));
+
+        CvPoint2D32f center = currentBlob->GetEllipse().center;
+        //std::cout << center << std::endl;
+    }
+
+    return blob_image;
+}
+
+IplImage* dynamic_loc_car(Mat *bit_anded_frame)
+{
+    static int missing_car_frame_count = 0;
+
+    CBlobResult blobs;
+    IplImage *blob_image =
+        cvCreateImage((*bit_anded_frame).size(), IPL_DEPTH_8U, 3);
+
+    locate_car_core(bit_anded_frame, blob_image, &blobs);
+
+    for (int i = 0; i < blobs.GetNumBlobs(); i++)
+    {
+        CBlob *currentBlob;
+        currentBlob = blobs.GetBlob(i);
+        currentBlob->FillBlob(blob_image, CV_RGB(0, 255, 0));
+
+        // Reset the number of frames that the car has been missing in
+        // dynamic_loc_car(). We always add to this after the loop
+        missing_car_frame_count = -1;
+
+        CvPoint2D32f center = currentBlob->GetEllipse().center;
+        //std::cout << center << std::endl;
+    }
+
+    // Sort of hacky. We always set it to -1 in the loop so it'll be 0 if it was
+    // found in this frame
+    missing_car_frame_count++;
+
+    if (missing_car_frame_count > STATIC_FRAME_THRESHOLD)
+    {
+        return NULL;
+    }
+    else
+    {
+        return blob_image;
+    }
+}
+
+// Main function for tracking
 void* cap_thr(void* arg)
 {
     puts("***Initializing capture***\n");
@@ -130,8 +217,9 @@ void* cap_thr(void* arg)
     }
 
     // Initialize video capture settings
-    cap.set(CV_CAP_PROP_BRIGHTNESS, .70);
-    cap.set(CV_CAP_PROP_SATURATION, .106);
+    //cap.set(CV_CAP_PROP_BRIGHTNESS, .60);
+    //cap.set(CV_CAP_PROP_SATURATION, .08);
+    //cap.set(CV_CAP_PROP_CONTRAST, .07);
 
     Mat image;
     cap >> image; /* Initial capture for the size info */
@@ -151,11 +239,6 @@ void* cap_thr(void* arg)
         }
     }
     
-    IplImage *moggedAndSmoothed;
-    IplImage *blobImage;
-    moggedAndSmoothed = cvCreateImage(image.size(), IPL_DEPTH_8U, 1);
-    blobImage = cvCreateImage(image.size(), IPL_DEPTH_8U, 3);
-
     BackgroundSubtractorMOG2 mog(50, 16, true);
 
     puts("***Done initializing capture***\n");
@@ -164,8 +247,8 @@ void* cap_thr(void* arg)
             Size(15, 15), Point(-1, -1));
     Mat dilate_elem_huge = getStructuringElement(MORPH_ELLIPSE,
             Size(25, 25), Point(-1, -1));
-    Mat erode_elem = getStructuringElement(MORPH_ELLIPSE,
-            Size(10, 10), Point(-1, -1));
+    Mat erode_elem = getStructuringElement(MORPH_RECT,
+            Size(5, 5), Point(-1, -1));
 
     for (;;)
     {
@@ -181,12 +264,10 @@ void* cap_thr(void* arg)
         threshold(frames[ERODED_IND], frames[THRESH_IND], 128, 255, 
                 THRESH_BINARY);
 
-        // Color filter (green)
+        // Color filter (yellow)
         cvtColor(frames[BLURRED_IND], frames[HSV_IND], CV_BGR2HSV);
-        //inRange(frames[HSV_IND], Scalar(60, 50, 70), 
-                //Scalar(130, 160, 200), frames[COLOR_FILTER_IND]);
-        inRange(frames[HSV_IND], Scalar(19, 0, 0), 
-                Scalar(23, 255, 255), frames[COLOR_FILTER_IND]);
+        inRange(frames[HSV_IND], Scalar(20, 30, 150), 
+                Scalar(32, 70, 255), frames[COLOR_FILTER_IND]);
         // Erode noise away and then dilate it before anding
         erode(frames[COLOR_FILTER_IND], frames[COLOR_FILTER_IND], erode_elem);
         dilate(frames[COLOR_FILTER_IND], frames[COLOR_DILATED], 
@@ -196,37 +277,16 @@ void* cap_thr(void* arg)
                frames[BG_AND_COLOR_IND]);
 
         dilate(frames[BG_AND_COLOR_IND], frames[DILATED_IND], dilate_elem_norm);
-    
+
         // Get blobs
-        CBlobResult blobs;
+        IplImage *blobImage = dynamic_loc_car(&frames[DILATED_IND]);
 
-        // We need to copy over the filtered frame for the CBlobResult()
-        CvMat copy(frames[DILATED_IND]);
-        cvCopy(&copy, moggedAndSmoothed);
-        cvMerge(&copy, &copy, &copy, NULL, blobImage);
-
-        blobs = CBlobResult(moggedAndSmoothed, NULL, 0);
-        blobs.Filter(blobs, B_EXCLUDE, CBlobGetArea(), B_OUTSIDE, 
-                1000, 4000);
-
-        for (int i = 0; i < blobs.GetNumBlobs(); i++)
+        if (blobImage == NULL)
         {
-            CBlob *currentBlob;
-            currentBlob = blobs.GetBlob(i);
-            currentBlob->FillBlob(blobImage, CV_RGB(255, 0, 0));
-            /*
-            printf("Found a blob! x=(%f,%f) y=(%f,%f)\n", currentBlob->MinX(),
-                    currentBlob->MaxX(),
-                    currentBlob->MinY(),
-                    currentBlob->MaxY()
-                    );
-                    */
-            CvPoint2D32f center = currentBlob->GetEllipse().center;
-            //car_x = center.x;
-            //car_y = center.y;
-            std::cout << center << std::endl;
+            blobImage = static_loc_car(&frames[COLOR_DILATED]);
         }
-
+    
+        //frames[DYN_BLOBS_IND] = dynBlobImage;
         frames[BLOBS_IND] = blobImage;
 
         for (int i=0; i<NUM_WINDOWS; i++)
