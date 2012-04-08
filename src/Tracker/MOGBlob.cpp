@@ -268,9 +268,9 @@ void* cap_thr(void* arg)
 
     puts("***Done initializing capture***\n");
     
-    Mat dilate_elem_norm = getStructuringElement(MORPH_ELLIPSE,
+    Mat dilate_elem_norm = getStructuringElement(MORPH_RECT,
             Size(15, 15), Point(-1, -1));
-    Mat dilate_elem_huge = getStructuringElement(MORPH_ELLIPSE,
+    Mat dilate_elem_huge = getStructuringElement(MORPH_RECT,
             Size(25, 25), Point(-1, -1));
     Mat erode_elem = getStructuringElement(MORPH_RECT,
             Size(5, 5), Point(-1, -1));
