@@ -43,13 +43,16 @@ static String frameNames[] =
 /* Only the frames we want displayed */
 static int windows[] = {CAPTURE_IND, 
                         //THRESH_IND,
-                        //COLOR_FILTER_IND,
+                        COLOR_FILTER_IND,
                         //COLOR_DILATED,
                         BLOBS_IND};
 
-// Known location of the car
+// Known location of the car. Need a mutex to lock around read/write access of
+// these globals
+static pthread_mutex_t loc_mx;
 static float car_x = 0;
 static float car_y = 0;
+static bool use_static = false;
 
 static pthread_mutex_t click_mx;
 static pthread_cond_t click_cond;
@@ -151,6 +154,10 @@ IplImage* static_loc_car(Mat *color_frame)
         currentBlob->FillBlob(blob_image, CV_RGB(0, 0, 255));
 
         CvPoint2D32f center = currentBlob->GetEllipse().center;
+        pthread_mutex_lock(&loc_mx);
+        car_x = center.x;
+        car_y = center.y;
+        pthread_mutex_unlock(&loc_mx);
         //std::cout << center << std::endl;
     }
 
@@ -177,7 +184,14 @@ IplImage* dynamic_loc_car(Mat *bit_anded_frame)
         // dynamic_loc_car(). We always add to this after the loop
         missing_car_frame_count = -1;
 
+        // TODO: add logic. For now, we just assign the last blob's center value
+        // to car_x and car_y. If not here, then in static_loc_car. If it fails
+        // there then we just leave the old value for now.
         CvPoint2D32f center = currentBlob->GetEllipse().center;
+        pthread_mutex_lock(&loc_mx);
+        car_x = center.x;
+        car_y = center.y;
+        pthread_mutex_unlock(&loc_mx);
         //std::cout << center << std::endl;
     }
 
@@ -266,8 +280,8 @@ void* cap_thr(void* arg)
 
         // Color filter (yellow)
         cvtColor(frames[BLURRED_IND], frames[HSV_IND], CV_BGR2HSV);
-        inRange(frames[HSV_IND], Scalar(20, 30, 150), 
-                Scalar(32, 70, 255), frames[COLOR_FILTER_IND]);
+        inRange(frames[HSV_IND], Scalar(20, 35, 150), 
+                Scalar(45, 90, 255), frames[COLOR_FILTER_IND]);
         // Erode noise away and then dilate it before anding
         erode(frames[COLOR_FILTER_IND], frames[COLOR_FILTER_IND], erode_elem);
         dilate(frames[COLOR_FILTER_IND], frames[COLOR_DILATED], 
@@ -279,15 +293,30 @@ void* cap_thr(void* arg)
         dilate(frames[BG_AND_COLOR_IND], frames[DILATED_IND], dilate_elem_norm);
 
         // Get blobs
-        IplImage *blobImage = dynamic_loc_car(&frames[DILATED_IND]);
+        IplImage *blobImage;
+        if (use_static == false)
+        {
+            blobImage = dynamic_loc_car(&frames[DILATED_IND]);
 
-        if (blobImage == NULL)
+            if (blobImage == NULL)
+            {
+                // Use static_loc_car() the next frame;
+                use_static = true;
+            }
+        }
+        else
         {
             blobImage = static_loc_car(&frames[COLOR_DILATED]);
+            use_static = false;
         }
-    
-        //frames[DYN_BLOBS_IND] = dynBlobImage;
-        frames[BLOBS_IND] = blobImage;
+
+        //std::cout << car_x << "," << car_y << std::endl;
+
+        // Only update if we actually got a new blob
+        if (blobImage != NULL)
+        {
+            frames[BLOBS_IND] = blobImage;
+        }
 
         for (int i=0; i<NUM_WINDOWS; i++)
         {
@@ -305,6 +334,9 @@ static void init_stuff()
 {
     pthread_mutex_init(&click_mx, NULL);
     pthread_cond_init(&click_cond, NULL);
+
+    // Lock for the car's position variables
+    pthread_mutex_init(&loc_mx, NULL);
 }
 
 int main()
@@ -356,7 +388,14 @@ tuple get_click_loc()
 
 tuple get_curr_loc()
 {
-    return make_tuple(69, 69);
+    float x, y;
+
+    pthread_mutex_lock(&loc_mx);
+    x = car_x;
+    y = car_y;
+    pthread_mutex_unlock(&loc_mx);
+
+    return make_tuple(x, y);
 }
 
 BOOST_PYTHON_MODULE(MOGBlob)
