@@ -88,6 +88,7 @@ if __name__ == '__main__':
 
     MOGBlob.ask_for_click();
     while True:
+        # Quit on quit events
         events = pygame.event.get();
         for event in events:
             print event
@@ -95,6 +96,7 @@ if __name__ == '__main__':
                 pygame.display.quit();
                 sys.exit(0);
 
+        # Test clicks for transformation data
         pos = MOGBlob.get_click_loc();
         if pos:
             (tx,ty) = trnFn.Transform(pos);
@@ -103,10 +105,21 @@ if __name__ == '__main__':
                 color = screen.get_at(trnpos);
             else:
                 color = 'Not in screen'
-
-            print ('Pos=%s TrnPos=%s Color=%s' %
+            print ('ClickPos=%s ClickTrnPos=%s Color=%s' %
                    (pos, trnpos, color));
-
             # Ask for more!
             MOGBlob.ask_for_click();
+
+        # Get curr loc and display!
+        pos = get_curr_loc();
+        if pos:
+            (tx,ty) = trnFn.Transform(pos);
+            trnpos = (int(tx), int(ty));
+            if inScreen(trnpos):
+                color = screen.get_at(trnpos);
+            else:
+                color = 'Not in screen'
+            print ('CarPos=%s CarTrnPos=%s Color=%s' %
+                   (pos, trnpos, color));
+            
 
