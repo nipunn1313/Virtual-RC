@@ -49,6 +49,21 @@ using namespace cv;
 // switch to static_loc_car()
 #define STATIC_LOC_THRESHOLD 1
 
+// For inRange()
+#define CALC_RANGE_LOWER(x) (((x) >= 10) ? (x) - 10 : 0)
+#define CALC_RANGE_UPPER(x) (((x) <= 245) ? (x) + 10 : 255)
+
+struct hsv_color
+{
+    uchar h;
+    uchar s;
+    uchar v;
+};
+
+// Calibrated HSV values for inRange()
+struct hsv_color min_color;
+struct hsv_color max_color;
+
 static String frameNames[] = 
     {"Capture", "Blurred", "HSV", "InRange", "BG Subtracted", "Dynamic Blobs",
         "Blobs", "BGSub&Eroded", "BGSub&Dilated", "BGSub AND color",
@@ -85,13 +100,6 @@ IplImage *temp_IPL_8U_1;
 IplImage *temp_IPL_8U_3;
 
 static int supp_disp = 0;
-
-struct hsv_color
-{
-    uchar h;
-    uchar s;
-    uchar v;
-};
 
 /* Functions for printing the HSV frame and a CvPoint2D32f */
 std::ostream& operator<<(std::ostream& o, hsv_color &c)
@@ -368,8 +376,15 @@ void* cap_thr(void* arg)
 
         // Convert to HSV and Color filter (yellow)
         cvtColor(frames[BLURRED_IND], frames[HSV_IND], CV_BGR2HSV);
-        inRange(frames[HSV_IND], Scalar(20, 40, 120), 
-                Scalar(40, 130, 255), frames[COLOR_FILTER_IND]);
+        inRange(frames[HSV_IND], 
+                Scalar(CALC_RANGE_LOWER(min_color.h),
+                       CALC_RANGE_LOWER(min_color.s),
+                       CALC_RANGE_LOWER(min_color.v)),
+                Scalar(CALC_RANGE_UPPER(max_color.h),
+                       CALC_RANGE_UPPER(max_color.s),
+                       CALC_RANGE_UPPER(max_color.v)),
+                frames[COLOR_FILTER_IND]);
+
         // Erode noise away and then dilate it before anding
         erode(frames[COLOR_FILTER_IND], frames[COLOR_FILTER_IND], erode_elem);
         dilate(frames[COLOR_FILTER_IND], frames[COLOR_DILATED], 
@@ -447,27 +462,20 @@ static void init_stuff()
 
     VideoCapture cap;
     get_cap(cap);
+    if (! cap.isOpened())
+        return;
 
     // Get two clicks for calibrating colors
     Mat image;
     Mat bgr_frame;
     Mat hsv_frame;
 
-    /* First few frames might not be stable */
-    for (int i = 0; i<200; i++)
-        cap >> image; /* Initial capture for the size info */
-
     bgr_frame = image.clone();
-
-    // Convert BGR to HSV
-    cvtColor(bgr_frame, hsv_frame, CV_BGR2HSV);
 
     const char *windowName = "calibration";
 
     // Create window
     namedWindow(windowName, CV_WINDOW_AUTOSIZE);
-    imshow(windowName, bgr_frame);
-
     // Mouse callback for HSV. Callback takes
     setMouseCallback(windowName, 
             HSVAndSizeMouseCallback, &hsv_frame);
@@ -476,29 +484,40 @@ static void init_stuff()
     // Check values of NUM_CALIB_CLICKS. Store the
     // max and min h, s, and v values (separately)
     // in these structs
-    struct hsv_color min;
-    struct hsv_color max;
-    min.h = min.s = min.v = 255;
-    max.h = max.s = max.v = 0;
+    min_color.h = min_color.s = min_color.v = 255;
+    max_color.h = max_color.s = max_color.v = 0;
 
     for (int i=0; i<NUM_CALIB_CLICKS; i++) {
         need_click_xy = 1;
-        while (need_click_xy);
+        while (need_click_xy)
+        {
+            cap >> image;
+            bgr_frame = image.clone();
 
-#define minf(x,y) ( ((x) < (y)) ? (x) : (y) )
-#define maxf(x,y) ( ((x) > (y)) ? (x) : (y) )
+            // Convert BGR to HSV
+            cvtColor(bgr_frame, hsv_frame, CV_BGR2HSV);
+
+            imshow(windowName, bgr_frame);
+            waitKey(1);
+        }
+
+#define min_f(x,y) ( ((x) < (y)) ? (x) : (y) )
+#define max_f(x,y) ( ((x) > (y)) ? (x) : (y) )
         hsv_color curr = hsv_frame.at<hsv_color>(click_y, click_x);
-        min.h = minf(min.h, curr.h);
-        min.s = minf(min.s, curr.s);
-        min.v = minf(min.v, curr.v);
-        max.h = maxf(max.h, curr.h);
-        max.s = maxf(max.s, curr.s);
-        max.v = maxf(max.v, curr.v);
+        min_color.h = min_f(min_color.h, curr.h);
+        min_color.s = min_f(min_color.s, curr.s);
+        min_color.v = min_f(min_color.v, curr.v);
+        max_color.h = max_f(max_color.h, curr.h);
+        max_color.s = max_f(max_color.s, curr.s);
+        max_color.v = max_f(max_color.v, curr.v);
 #undef minf
 #undef maxf
     }
-    std::cout << "Min = " << min << std::endl;
-    std::cout << "Max = " << max << std::endl;
+
+    std::cout << "Min = " << min_color << std::endl;
+    std::cout << "Max = " << max_color << std::endl;
+
+    cvDestroyWindow(windowName);
 }
 
 int main()
