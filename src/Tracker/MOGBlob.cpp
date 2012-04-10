@@ -251,6 +251,23 @@ IplImage* dynamic_loc_car(Mat *bit_anded_frame)
     }
 }
 
+void get_cap(VideoCapture &cap)
+{
+    for (int i=1; i>=0; i--)
+    {
+        cap.open(i);
+        if (cap.isOpened())
+        {
+            break;
+        }
+    }
+
+    if (!cap.isOpened())
+    {
+        puts("***Initializing camera failed***\n");
+    }
+}
+
 // Main function for tracking
 void* cap_thr(void* arg)
 {
@@ -261,20 +278,9 @@ void* cap_thr(void* arg)
     puts("***Initializing capture***\n");
 
     VideoCapture cap;
-
-    for (int i=1; i>=0; i--)
-    {
-        cap.open(i);
-        if (cap.isOpened())
-        {
-            break;
-        }
-    }
-    if (!cap.isOpened())
-    {
-        puts("***Initializing camera failed***\n");
+    get_cap(cap);
+    if (! cap.isOpened())
         return 0;
-    }
 
     // Initialize video capture settings
     //cap.set(CV_CAP_PROP_BRIGHTNESS, .40);
@@ -360,7 +366,7 @@ void* cap_thr(void* arg)
         threshold(frames[ERODED_IND], frames[THRESH_IND], 128, 255, 
                 THRESH_BINARY);
 
-        // Color filter (yellow)
+        // Convert to HSV and Color filter (yellow)
         cvtColor(frames[BLURRED_IND], frames[HSV_IND], CV_BGR2HSV);
         inRange(frames[HSV_IND], Scalar(20, 40, 120), 
                 Scalar(40, 130, 255), frames[COLOR_FILTER_IND]);
@@ -438,7 +444,61 @@ static void init_stuff()
 
     // Lock for the car's position variables
     pthread_mutex_init(&loc_mx, NULL);
-        
+
+    VideoCapture cap;
+    get_cap(cap);
+
+    // Get two clicks for calibrating colors
+    Mat image;
+    Mat bgr_frame;
+    Mat hsv_frame;
+
+    /* First few frames might not be stable */
+    for (int i = 0; i<200; i++)
+        cap >> image; /* Initial capture for the size info */
+
+    bgr_frame = image.clone();
+
+    // Convert BGR to HSV
+    cvtColor(bgr_frame, hsv_frame, CV_BGR2HSV);
+
+    const char *windowName = "calibration";
+
+    // Create window
+    namedWindow(windowName, CV_WINDOW_AUTOSIZE);
+    imshow(windowName, bgr_frame);
+
+    // Mouse callback for HSV. Callback takes
+    setMouseCallback(windowName, 
+            HSVAndSizeMouseCallback, &hsv_frame);
+
+#define NUM_CALIB_CLICKS 5
+    // Check values of NUM_CALIB_CLICKS. Store the
+    // max and min h, s, and v values (separately)
+    // in these structs
+    struct hsv_color min;
+    struct hsv_color max;
+    min.h = min.s = min.v = 255;
+    max.h = max.s = max.v = 0;
+
+    for (int i=0; i<NUM_CALIB_CLICKS; i++) {
+        need_click_xy = 1;
+        while (need_click_xy);
+
+#define minf(x,y) ( ((x) < (y)) ? (x) : (y) )
+#define maxf(x,y) ( ((x) > (y)) ? (x) : (y) )
+        hsv_color curr = hsv_frame.at<hsv_color>(click_y, click_x);
+        min.h = minf(min.h, curr.h);
+        min.s = minf(min.s, curr.s);
+        min.v = minf(min.v, curr.v);
+        max.h = maxf(max.h, curr.h);
+        max.s = maxf(max.s, curr.s);
+        max.v = maxf(max.v, curr.v);
+#undef minf
+#undef maxf
+    }
+    std::cout << "Min = " << min << std::endl;
+    std::cout << "Max = " << max << std::endl;
 }
 
 int main()

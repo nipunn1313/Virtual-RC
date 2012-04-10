@@ -96,11 +96,12 @@ if __name__ == '__main__':
     print "Transformation is:"
     print trnFn.To_Str()
 
+    MOGBlob.suppress_display();
+
     #Draw to screen and show changes
     screen.blit(race_surf, (0,0));
     pygame.display.flip();
 
-    MOGBlob.suppress_display();
     #MOGBlob.ask_for_click();
     while True:
         # Quit on quit events
