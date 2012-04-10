@@ -34,7 +34,7 @@ using namespace cv;
 #define NUM_WINDOWS (sizeof(windows) / sizeof(windows[0]))
 
 // Size of a car blob in pixels
-#define CAR_BLOB_SIZE_MIN 1000
+#define CAR_BLOB_SIZE_MIN 500
 #define CAR_BLOB_SIZE_MAX 5500
 
 #define DIST_SQUARED(x1, y1, x2, y2) (((x2) - (x1))*((x2) - (x1)) + \
@@ -50,8 +50,8 @@ using namespace cv;
 #define STATIC_LOC_THRESHOLD 1
 
 // For inRange()
-#define CALC_RANGE_LOWER(x) (((x) >= 10) ? (x) - 10 : 0)
-#define CALC_RANGE_UPPER(x) (((x) <= 245) ? (x) + 10 : 255)
+#define CALC_RANGE_LOWER(x, buffer) (((x) >= buffer) ? (x) - buffer : 0)
+#define CALC_RANGE_UPPER(x, buffer) (((x) <= (255 - buffer)) ? (x) + buffer : 255)
 
 struct hsv_color
 {
@@ -377,12 +377,12 @@ void* cap_thr(void* arg)
         // Convert to HSV and Color filter (yellow)
         cvtColor(frames[BLURRED_IND], frames[HSV_IND], CV_BGR2HSV);
         inRange(frames[HSV_IND], 
-                Scalar(CALC_RANGE_LOWER(min_color.h),
-                       CALC_RANGE_LOWER(min_color.s),
-                       CALC_RANGE_LOWER(min_color.v)),
-                Scalar(CALC_RANGE_UPPER(max_color.h),
-                       CALC_RANGE_UPPER(max_color.s),
-                       CALC_RANGE_UPPER(max_color.v)),
+                Scalar(CALC_RANGE_LOWER(min_color.h, 15),
+                       CALC_RANGE_LOWER(min_color.s, 70),
+                       CALC_RANGE_LOWER(min_color.v, 70)),
+                Scalar(CALC_RANGE_UPPER(max_color.h, 15),
+                       CALC_RANGE_UPPER(max_color.s, 70),
+                       CALC_RANGE_UPPER(max_color.v, 70)),
                 frames[COLOR_FILTER_IND]);
 
         // Erode noise away and then dilate it before anding
