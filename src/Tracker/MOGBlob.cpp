@@ -447,6 +447,8 @@ static void init_stuff()
 
     VideoCapture cap;
     get_cap(cap);
+    if (! cap.isOpened())
+        exit(0);
 
     // Get two clicks for calibrating colors
     Mat image;
