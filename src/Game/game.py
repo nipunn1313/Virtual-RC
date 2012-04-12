@@ -113,7 +113,7 @@ if __name__ == '__main__':
                 MOGBlob.destroy_tracker();
                 sys.exit(0);
 
-        pos = MOGBlob.get_curr_loc();
+        pos = MOGBlob.get_curr_loc(0);
         # On click, get curr loc and display!
         # clickpos = MOGBlob.get_click_loc();
         if pos:

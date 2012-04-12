@@ -3,7 +3,9 @@ GAME_DIR=src/Game
 BLOBS_DIR=src/cvblobs8.3_linux
 LIB_DIR=lib
 
-CC=g++ -O3 -g
+CC=g++ -O3
+CC_DEBUG=g++ -g
+CC_PROFILE=g++ -O3 -g
 CC_FLAGS=`pkg-config opencv --cflags --libs` \
 		 -I$(BLOBS_DIR) -I/usr/include/python2.7 \
 		 -L$(BLOBS_DIR) \
@@ -14,10 +16,16 @@ all: blobs tracker game
 blobs:
 	cd $(BLOBS_DIR) ; test -f libblob.a || make
 
-tracker: trackerso trackerexec 
+tracker: trackerso trackerexec
 	
 trackerexec: $(TRACKER_DIR)/MOGBlob.cpp
-	$(CC) -o MOGBlob $(TRACKER_DIR)/MOGBlob.cpp $(CC_FLAGS)
+	$(CC) -o MOGBlob -DMULTI_DISPLAY $(TRACKER_DIR)/MOGBlob.cpp $(CC_FLAGS)
+
+debug: $(TRACKER_DIR)/MOGBlob.cpp
+	$(CC_DEBUG) -o MOGBlob -DMULTI_DISPLAY $(TRACKER_DIR)/MOGBlob.cpp $(CC_FLAGS)
+
+profile: $(TRACKER_DIR)/MOGBlob.cpp
+	$(CC_PROFILE) -o MOGBlob -DSUPPRESS_CALIBRATE $(TRACKER_DIR)/MOGBlob.cpp $(CC_FLAGS)
 
 trackerso: $(TRACKER_DIR)/MOGBlob.cpp
 	mkdir -p $(LIB_DIR)
