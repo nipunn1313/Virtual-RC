@@ -16,56 +16,15 @@ Requires tons of libraries. At least(!):
 	cvbloblibs8.3 (need to compile from source. Compile with -fPIC (modify
 				Makefile))
 
-For running the tracker, use the Makefile in cpp. In the python interpreter:
-import MOGBlob
-MOGBlob.init_tracker
+Compile in the top directory using make -j. game.py is the full game while
+MOGBlob is the standalone tracker
 
-=======================================================================
-==============TODO: This is outdated==============
+TODO:
+-Move code to separate files to keep our filesize down
+-Add checks for calibration. Most importantly, have the game display where it
+thinks the corners of the map are (put visual indicators in the track image).
+-Add ability to detect too much noise. Perhaps automatically restarting the
+tracker and webcam if necessary (with different settings).
+-Add a better track (wider!) with some small curves.
+-Flush out the game (start/finish, timing, items, prevent people from cheating)
 
-There are a few parts to our algorithm:
-lkdemo.py
-	-OpenCVExample
-	-Allows you to do blob tracking using cvCalcOpticalFlowPyrLK()
-		-Requires static initialization of blob
-
-cvCalcOpticalFlowLK()
-	-Generic optical flow implemented using the LK algorithm
-
-FindCornerSubPix()/GoodFeaturesToTrack()
-	-OpenCV functions that allow us to pick out features of the image
-	(either generically or using our own "criteria")
-	-Documentation here:
-		http://opencv.willowgarage.com/documentation/python/imgproc_feature_detection.html
-
-Color detection
-	-Used to differentiate cars
-
-Color smoothing
-	-Allow cars to be differentiated from other "features"
-
-Optical flow filtering
-	-If the camera is obstructed, allows you to probabilistically predict
-	its position based on previous optical flow history
-
-Tracking algorithm:
-	-Initialize blobs statically during race start or when a car dies
-	(because it must be placed back onto the track at a designated spot
-	 where we can detect it for tracking and then reenable the car's 
-	 movement)
-		-Use feature detection and color detection to differentiate cars
-		from the background and each other
-		-May need color smoothing
-	-For each frame, we need to find the car again (assuming 15fps then we
-			have 1/15 seconds per frame. Possibly too fast. If so,
-			ignore every few frames)
-		-First, use the location of the previous blob to look at
-		features (faster and more accurate than searching the entire
-				frame for the car)
-			-May be faster to use optical flow to determine which
-				area to search	
-		-Use color detection to match a car (better than matching a
-				static/constant color because of lighting or 
-				projector colors causing problems)
-		-Search for area around matching features for the rest of the
-		car

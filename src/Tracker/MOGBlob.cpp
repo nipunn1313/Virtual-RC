@@ -17,6 +17,27 @@
 
 using namespace cv;
 
+#define NUM_CARS (sizeof(carNames) / sizeof(carNames[0]))
+
+// Size of a car blob in pixels
+#define CAR_BLOB_SIZE_MIN 1000
+#define CAR_BLOB_SIZE_MAX 10000
+
+#define DIST_SQUARED(x1, x2, y1, y2) ((((x2) - (x1))*((x2) - (x1))) + \
+                                      (((y2) - (y1))*((y2) - (y1))))
+
+// Location of new blob must be less than this far from the previously
+// known location in pixels
+#define CAR_MAX_DIST_SQUARED 1500
+
+// Number of frames that dynamic_loc_car() has failed to find the car before we
+// switch to static_loc_car()
+#define STATIC_LOC_THRESHOLD 1
+
+// For inRange()
+#define CALC_RANGE_LOWER(x, buffer) (((x) >= buffer) ? (x) - buffer : 0)
+#define CALC_RANGE_UPPER(x, buffer) (((x) <= (255 - buffer)) ? (x) + buffer : 255)
+
 /* Shared between cars */
 enum {
     CAPTURE_IND,
@@ -58,49 +79,11 @@ static String perCarFrameNames[] = {
 #define NUM_PER_CAR_FRAMES \
     (sizeof(perCarFrameNames) / sizeof(perCarFrameNames[0]))
 
-enum Car {
-    WARIO,
-    LUIGI
-};
-
-static String carNames[] = {"Wario ", "Luigi "};
-
-#define NUM_CARS (sizeof(carNames) / sizeof(carNames[0]))
-
-// Size of a car blob in pixels
-#define CAR_BLOB_SIZE_MIN 500
-#define CAR_BLOB_SIZE_MAX 5500
-
-#define DIST_SQUARED(x1, y1, x2, y2) (((x2) - (x1))*((x2) - (x1)) + \
-                                      ((y2) - (y1))*((y2) - (y1)))
-
-// Location of new blob must be less than this far from the previously
-// known location in pixels
-// TODO: Why does this need to be so high
-#define CAR_MAX_DIST_SQUARED 500000
-
-// Number of frames that dynamic_loc_car() has failed to find the car before we
-// switch to static_loc_car()
-#define STATIC_LOC_THRESHOLD 1
-
-// For inRange()
-#define CALC_RANGE_LOWER(x, buffer) (((x) >= buffer) ? (x) - buffer : 0)
-#define CALC_RANGE_UPPER(x, buffer) (((x) <= (255 - buffer)) ? (x) + buffer : 255)
-
-struct hsv_color
-{
-    uchar h;
-    uchar s;
-    uchar v;
-};
-
 /* Only the frames we want displayed */
 #ifdef MULTI_DISPLAY
 static int sharedWindows[] = {CAPTURE_IND};
-static int perCarWindows[] = {
-                        PER_CAR_COLOR_FILTER_IND,
-                        PER_CAR_BLOBS_IND
-                        };
+static int perCarWindows[] = {PER_CAR_COLOR_DILATED,
+                              PER_CAR_BLOBS_IND};
 #else
 static int sharedWindows[] = {};
 static int perCarWindows[] = {};
@@ -109,16 +92,34 @@ static int perCarWindows[] = {};
 #define NUM_SHARED_WINDOWS (sizeof(sharedWindows) / sizeof(sharedWindows[0]))
 #define NUM_PER_CAR_WINDOWS (sizeof(perCarWindows) / sizeof(perCarWindows[0]))
 
+static String carNames[] = {"Wario "};//, "Luigi "};
+
+enum {
+    IPL_1_IND,
+    IPL_3_IND
+};
+
+// IplImage. Allocate once for each car. Reuse!
+IplImage *tempIplImages[NUM_CARS][2];
+
+enum Car {
+    WARIO,
+    LUIGI
+};
+
+struct hsv_color
+{
+    uchar h;
+    uchar s;
+    uchar v;
+};
+
 // Globals for mouse callback on the window
 static pthread_mutex_t click_mx;
 static pthread_cond_t click_cond;
 static int need_click_xy = 0;
 static int click_x = 0;
 static int click_y = 0;
-
-// IplImage. Allocate once. Reuse!
-IplImage *temp_IPL_8U_1;
-IplImage *temp_IPL_8U_3;
 
 // Add ability to hide display (for performance)
 static int hide_disp = 0;
@@ -198,9 +199,10 @@ void HSVAndSizeMouseCallback(int event, int x, int y, int flags, void *frame_p)
 }
 
 // Generates blob_image and blobs
-void locate_car_core(Mat *frame, IplImage *blob_image, CBlobResult *blobs_p)
+void get_filtered_blobs(Mat *frame, IplImage *blob_image, CBlobResult *blobs_p,
+                     int car_ind)
 {
-    IplImage *frame_as_image = temp_IPL_8U_1;
+    IplImage *frame_as_image = tempIplImages[car_ind][IPL_1_IND];
 
     CvMat copy(*frame);
     cvCopy(&copy, frame_as_image);
@@ -212,9 +214,8 @@ void locate_car_core(Mat *frame, IplImage *blob_image, CBlobResult *blobs_p)
             CAR_BLOB_SIZE_MIN, CAR_BLOB_SIZE_MAX);
 }
 
-IplImage* find_and_draw_best_blob(int car,
-        CBlobResult blobs, IplImage *blob_image, 
-                                  CvScalar blob_color)
+IplImage* find_and_draw_best_blob(int car, CBlobResult blobs, 
+                                  IplImage *blob_image, CvScalar blob_color)
 {
     // Mark first blob as best candidate (doing it here makes code cleaner)
     CBlob *best_blob = blobs.GetBlob(0);
@@ -223,7 +224,7 @@ IplImage* find_and_draw_best_blob(int car,
     float min_dist = DIST_SQUARED(best_blob_x, car_info[car].car_x, 
             best_blob_y, car_info[car].car_y);
 
-    // Found too many blobs. Pick the best one based on proximity to 
+    // Found multiple blobs. Pick the best one based on proximity to 
     // previous car location
     if (blobs.GetNumBlobs() > 1)   
     {
@@ -232,9 +233,9 @@ IplImage* find_and_draw_best_blob(int car,
             CBlob *curr_blob = blobs.GetBlob(blobNum);
             float curr_blob_x = curr_blob->GetEllipse().center.x;
             float curr_blob_y = curr_blob->GetEllipse().center.y;
-            float curr_dist = DIST_SQUARED(car_info[car].car_x, 
-                    curr_blob_x, 
-                    car_info[car].car_y, curr_blob_y);
+            float curr_dist = 
+                    DIST_SQUARED(car_info[car].car_x, curr_blob_x, 
+                                 car_info[car].car_y, curr_blob_y);
 
             if (curr_dist < min_dist && curr_dist < CAR_MAX_DIST_SQUARED)
             {
@@ -268,9 +269,9 @@ IplImage* find_and_draw_best_blob(int car,
 IplImage* static_loc_car(int car, Mat *color_frame)
 {
     CBlobResult blobs;
-    IplImage *blob_image = temp_IPL_8U_3;
+    IplImage *blob_image = tempIplImages[car][IPL_3_IND];
 
-    locate_car_core(color_frame, blob_image, &blobs);
+    get_filtered_blobs(color_frame, blob_image, &blobs, car);
 
     if (blobs.GetNumBlobs() == 0)
     {
@@ -286,9 +287,9 @@ IplImage* static_loc_car(int car, Mat *color_frame)
 IplImage* dynamic_loc_car(int car, Mat *bit_anded_frame)
 {
     CBlobResult blobs;
-    IplImage *blob_image = temp_IPL_8U_3;
+    IplImage *blob_image = tempIplImages[car][IPL_3_IND];
 
-    locate_car_core(bit_anded_frame, blob_image, &blobs);
+    get_filtered_blobs(bit_anded_frame, blob_image, &blobs, car);
 
     // Didn't find any blobs of reasonable size in the anded frame
     if (blobs.GetNumBlobs() == 0)
@@ -371,7 +372,17 @@ void* cap_thr(void* arg)
             }
         }
     }
+
+    // Initialize IplImages used for cvBlobsLib
+    for (unsigned int car_ind = 0; car_ind < NUM_CARS; car_ind++)
+    {
+        tempIplImages[car_ind][IPL_1_IND] =
+            cvCreateImage(image.size(), IPL_DEPTH_8U, 1);
+        tempIplImages[car_ind][IPL_3_IND] =
+            cvCreateImage(image.size(), IPL_DEPTH_8U, 3);
+    }
     
+    // Set up the background subtractor
     BackgroundSubtractorMOG2 mog(50, 16, true);
 
     // Structuring elements for dilation and erosion
@@ -381,9 +392,6 @@ void* cap_thr(void* arg)
             Size(20, 20), Point(-1, -1));
     Mat erode_elem = getStructuringElement(MORPH_RECT,
             Size(7, 7), Point(-1, -1));
-
-    temp_IPL_8U_1 = cvCreateImage(image.size(), IPL_DEPTH_8U, 1);
-    temp_IPL_8U_3 = cvCreateImage(image.size(), IPL_DEPTH_8U, 3);
 
     puts("***Done initializing capture***\n");
 
@@ -432,10 +440,10 @@ void* cap_thr(void* arg)
         // Color filter
         for (int car=0; car<NUM_CARS; car++)
         {
-            Scalar mincolor(CALC_RANGE_LOWER(car_info[car].min_color.h, 15),
+            Scalar mincolor(CALC_RANGE_LOWER(car_info[car].min_color.h, 8),
                         CALC_RANGE_LOWER(car_info[car].min_color.s, 70),
                         CALC_RANGE_LOWER(car_info[car].min_color.v, 70));
-            Scalar maxcolor(CALC_RANGE_UPPER(car_info[car].max_color.h, 15),
+            Scalar maxcolor(CALC_RANGE_UPPER(car_info[car].max_color.h, 8),
                         CALC_RANGE_UPPER(car_info[car].max_color.s, 70),
                         CALC_RANGE_UPPER(car_info[car].max_color.v, 70));
 
@@ -476,19 +484,13 @@ void* cap_thr(void* arg)
                 if (car_info[car].immobile_frame_count > STATIC_LOC_THRESHOLD)
                 {
                     blobImage = static_loc_car(car,
-                            &perCarFrames[car][PER_CAR_ANDED_DILATED]);
+                            &perCarFrames[car][PER_CAR_COLOR_DILATED]);
 
                     if (blobImage == NULL)
                     {
                         // We failed to find it with both location functions!
                         car_info[car].is_car_missing = true;
                         //std::cout << "Car is missing" << std::endl;
-                    }
-                    else
-                    {
-                        // We found the car statically
-                        car_info[car].is_car_missing = false;
-                        car_info[car].immobile_frame_count = 0;
                     }
                 }
             }
@@ -515,8 +517,6 @@ void* cap_thr(void* arg)
                         perCarFrames[car][frame]);
             }
         }
-
-        //std::cout << num_frames << ", " << frames_failed << std::endl;
 
         waitKey(1);
     }
@@ -558,7 +558,7 @@ static void init_stuff()
     for (int car=0; car<NUM_CARS; car++)
     {
         std::cout << "Calibrating " << carNames[car] << 
-            ". Click 5 times on the car";
+            ". Click " << NUM_CALIB_CLICKS << " times on the car\n";
         struct hsv_color &min_color = car_info[car].min_color;
         struct hsv_color &max_color = car_info[car].max_color;
 
@@ -597,8 +597,14 @@ static void init_stuff()
 
         std::cout << "Min = " << min_color << std::endl;
         std::cout << "Max = " << max_color << std::endl;
+
+        // Initialize the car location with the last click (it should be close
+        // enough)
+        car_info[car].car_x = click_x;
+        car_info[car].car_y = click_y;
     }
 
+    // Get rid of the calibration window
     cvDestroyWindow(windowName);
 #endif
 }
