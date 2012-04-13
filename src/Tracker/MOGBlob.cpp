@@ -92,7 +92,7 @@ static int perCarWindows[] = {};
 #define NUM_SHARED_WINDOWS (sizeof(sharedWindows) / sizeof(sharedWindows[0]))
 #define NUM_PER_CAR_WINDOWS (sizeof(perCarWindows) / sizeof(perCarWindows[0]))
 
-static String carNames[] = {"Wario "};//, "Luigi "};
+static String carNames[] = {"Wario ", "Luigi "};
 
 enum {
     IPL_1_IND,
@@ -132,6 +132,9 @@ static struct {
     // Globals for tracking logic
     int immobile_frame_count; // Auto-Initialized to zero
     bool is_car_missing; // Auto-Initialized to zero
+
+    // TODO: For testing
+    int num_frames_missing;
 
     // Known location of the car. Need a mutex to lock around read/write 
     // access of these globals
@@ -418,6 +421,12 @@ void* cap_thr(void* arg)
             tot_tp = tot_lat = 0;
         }
         */
+        
+        //TODO: Testing. Delete
+        int num_frames;
+        int num_frames_missing0;
+
+        num_frames++;
 
         cap >> image;
         if (image.empty()) break;
@@ -440,6 +449,13 @@ void* cap_thr(void* arg)
         // Color filter
         for (int car=0; car<NUM_CARS; car++)
         {
+            //TODO: Testing. Delete
+            if (car_info[car].is_car_missing)
+            {
+                car_info[car].num_frames_missing++;
+            }
+            std::cout << carNames[car] << " | " << car_info[car].num_frames_missing << "/" << num_frames << std::endl;
+
             Scalar mincolor(CALC_RANGE_LOWER(car_info[car].min_color.h, 8),
                         CALC_RANGE_LOWER(car_info[car].min_color.s, 70),
                         CALC_RANGE_LOWER(car_info[car].min_color.v, 70));
