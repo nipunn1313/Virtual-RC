@@ -107,13 +107,13 @@ if __name__ == '__main__':
         # Quit on quit events
         events = pygame.event.get();
         for event in events:
-            print event
+            #print event
             if event.type == QUIT:
                 pygame.display.quit();
                 MOGBlob.destroy_tracker();
                 sys.exit(0);
 
-        pos = MOGBlob.get_curr_loc(0);
+        pos = MOGBlob.get_car_loc(0);
         # On click, get curr loc and display!
         # clickpos = MOGBlob.get_click_loc();
         if pos:

@@ -49,7 +49,7 @@ enum {
     HSV_IND
 };
 
-static String sharedFrameNames[] = {
+static std::string sharedFrameNames[] = {
     "Capture", "Blurred", "BG Subtracted", "BG Sub + Erode",
     "BG Sub + Erode + Dilate", "BG Sub + Er+Dil + Threshold",
     "HSV Capture"
@@ -85,7 +85,7 @@ static int sharedWindows[] = {CAPTURE_IND};
 static int perCarWindows[] = {PER_CAR_COLOR_DILATED,
                               PER_CAR_BLOBS_IND};
 #else
-static int sharedWindows[] = {};
+static int sharedWindows[] = {CAPTURE_IND};
 static int perCarWindows[] = {};
 #endif
 
@@ -454,7 +454,7 @@ void* cap_thr(void* arg)
             {
                 car_info[car].num_frames_missing++;
             }
-            std::cout << carNames[car] << " | " << car_info[car].num_frames_missing << "/" << num_frames << std::endl;
+            //std::cout << carNames[car] << " | " << car_info[car].num_frames_missing << "/" << num_frames << std::endl;
 
             Scalar mincolor(CALC_RANGE_LOWER(car_info[car].min_color.h, 8),
                         CALC_RANGE_LOWER(car_info[car].min_color.s, 70),
@@ -518,19 +518,39 @@ void* cap_thr(void* arg)
             }
         }
 
-        for (unsigned int i=0; i<NUM_SHARED_WINDOWS; i++)
+        if (hide_disp)
         {
-            int frame = sharedWindows[i];
-            imshow(sharedFrameNames[frame], sharedFrames[frame]);
+            static int already_destroyed=0;
+            if (! already_destroyed) {
+                already_destroyed = 1;
+                for (unsigned int i=0; i<NUM_SHARED_WINDOWS; i++) {
+                    int frame = sharedWindows[i];
+                    cvDestroyWindow(sharedFrameNames[frame].c_str());
+                }
+                for (unsigned int i=0; i<NUM_PER_CAR_WINDOWS; i++) {
+                    int frame = perCarWindows[i];
+                    for (int car=0; car<NUM_CARS; car++)
+                        cvDestroyWindow((carNames[car]+
+                                    perCarFrameNames[frame]).c_str());
+                }
+            }
         }
-
-        for (unsigned int i=0; i<NUM_PER_CAR_WINDOWS; i++)
+        else
         {
-            int frame = perCarWindows[i];
-            for (int car=0; car<NUM_CARS; car++)
+            for (unsigned int i=0; i<NUM_SHARED_WINDOWS; i++)
             {
-                imshow(carNames[car] + perCarFrameNames[frame], 
-                        perCarFrames[car][frame]);
+                int frame = sharedWindows[i];
+                imshow(sharedFrameNames[frame], sharedFrames[frame]);
+            }
+
+            for (unsigned int i=0; i<NUM_PER_CAR_WINDOWS; i++)
+            {
+                int frame = perCarWindows[i];
+                for (int car=0; car<NUM_CARS; car++)
+                {
+                    imshow(carNames[car] + perCarFrameNames[frame], 
+                            perCarFrames[car][frame]);
+                }
             }
         }
 
@@ -562,7 +582,7 @@ static void init_stuff()
 
     bgr_frame = image.clone();
 
-    const char *windowName = "calibration";
+    const char *windowName = "color calibration";
 
     // Create window
     namedWindow(windowName, CV_WINDOW_AUTOSIZE);
@@ -631,6 +651,10 @@ int main()
     cap_thr(NULL);
 }
 
+/**************************************/
+/* Python exported functions and shit */
+/**************************************/
+
 #include <boost/python.hpp>
 using namespace boost::python;
 
@@ -665,8 +689,8 @@ tuple get_click_loc()
 {
     tuple xy;
 
-    /* Set the need for a click loc and
-       spin on it */
+    /* Return click_loc or NULL if haven't
+       clicked yet */
     pthread_mutex_lock(&click_mx);
     if (need_click_xy)
         xy = tuple();
@@ -677,7 +701,7 @@ tuple get_click_loc()
     return xy;
 }
 
-tuple get_curr_loc(int car)
+tuple get_car_loc(int car)
 {
     float x, y;
 
@@ -698,7 +722,7 @@ BOOST_PYTHON_MODULE(MOGBlob)
 {
     def("init_tracker", init_tracker);
     def("destroy_tracker", destroy_tracker);
-    def("get_curr_loc", get_curr_loc);
+    def("get_car_loc", get_car_loc);
     def("ask_for_click", ask_for_click);
     def("suppress_display", suppress_display);
     def("get_click_loc", get_click_loc);
