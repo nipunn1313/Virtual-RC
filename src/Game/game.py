@@ -82,7 +82,10 @@ if __name__ == '__main__':
 	# Initialize the speed sender thread for car1, with a 1.0 second interval
     xbeeSender = xbee.XBee(serial.Serial('/dev/ttyUSB0', 9600))
     car1 = SpeedSender.forXBee(1.000, xbeeSender, SpeedSender.DEST2)
-    car1.start()
+    car2 = SpeedSender.forXBee(1.000, xbeeSender, SpeedSender.DEST3)
+    cars = [car1, car2]
+    for car in cars:
+        car.start();
 
     # Initialize MOGBlob code
     MOGBlob.init_tracker();
@@ -102,7 +105,6 @@ if __name__ == '__main__':
     screen.blit(race_surf, (0,0));
     pygame.display.flip();
 
-    #MOGBlob.ask_for_click();
     while True:
         # Quit on quit events
         events = pygame.event.get();
@@ -113,30 +115,25 @@ if __name__ == '__main__':
                 MOGBlob.destroy_tracker();
                 sys.exit(0);
 
-        pos = MOGBlob.get_car_loc(0);
-        # On click, get curr loc and display!
-        # clickpos = MOGBlob.get_click_loc();
-        if pos:
-            (tx,ty) = trnFn.Transform(pos);
-            trnpos = (int(tx), int(ty));
-            if inScreen(trnpos):
-                color = screen.get_at(trnpos);
-            else:
-                color = 'Not in screen'
-            #print ('CarPos=%s CarTrnPos=%s Color=%s' %
-                   #(pos, trnpos, color));
-            # Below is a prototype for how the car's speed can be changed
-            # in response to what color it's on
-            if color == grey:
-                car1.changeSpeed(SpeedSender.NORM)
-            elif color == brown:
-                car1.changeSpeed(SpeedSender.SLOW)
-            elif color == black:
-                car1.changeSpeed(SpeedSender.NORM)
-            else:
-                car1.changeSpeed(SpeedSender.SLOW)
-                #car1.changeSpeed(SpeedSender.STOP)
-
-            # Ask for more!
-            # MOGBlob.ask_for_click();
+        for carnum in range(2):
+            car = cars[carnum];
+            pos = MOGBlob.get_car_loc(carnum);
+            if pos:
+                (tx,ty) = trnFn.Transform(pos);
+                trnpos = (int(tx), int(ty));
+                if inScreen(trnpos):
+                    color = screen.get_at(trnpos);
+                else:
+                    color = 'Not in screen'
+                #print ('CarPos=%s CarTrnPos=%s Color=%s' %
+                       #(pos, trnpos, color));
+                if color == grey:
+                    car.changeSpeed(SpeedSender.NORM)
+                elif color == brown:
+                    car.changeSpeed(SpeedSender.SLOW)
+                elif color == black:
+                    car.changeSpeed(SpeedSender.NORM)
+                else:
+                    car.changeSpeed(SpeedSender.SLOW)
+                    #car.changeSpeed(SpeedSender.STOP)
 
