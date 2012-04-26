@@ -132,8 +132,6 @@ static struct {
     // Globals for tracking logic
     int immobile_frame_count; // Auto-Initialized to zero
     bool is_car_missing; // Auto-Initialized to zero
-
-    // TODO: For testing
     int num_frames_missing;
 
     // Known location of the car. Need a mutex to lock around read/write 
@@ -324,28 +322,11 @@ void get_cap(VideoCapture &cap)
     }
 }
 
-// Main function for tracking
-void* cap_thr(void* arg)
+// Helpers to cap_thr
+
+void create_windows(Mat *sharedFrames, Mat perCarFrames[][NUM_PER_CAR_FRAMES], 
+        Mat &image)
 {
-    puts("***Initializing capture***\n");
-
-    VideoCapture cap;
-    get_cap(cap);
-    if (! cap.isOpened())
-        return 0;
-
-    // Initialize video capture settings
-    //cap.set(CV_CAP_PROP_BRIGHTNESS, .40);
-    //cap.set(CV_CAP_PROP_SATURATION, .08);
-    //cap.set(CV_CAP_PROP_CONTRAST, .07);
-
-    Mat image;
-    cap >> image; /* Initial capture for the size info */
-
-    Mat sharedFrames[NUM_SHARED_FRAMES]; /* Frames for each stage */
-    Mat perCarFrames[NUM_CARS][NUM_PER_CAR_FRAMES];
-
-    // Create windows
     for (unsigned int i=0; i<NUM_SHARED_WINDOWS; i++)
     {
         int frame_ind = sharedWindows[i];
@@ -375,8 +356,49 @@ void* cap_thr(void* arg)
             }
         }
     }
+}
 
-    // Initialize IplImages used for cvBlobsLib
+void display_windows(Mat *sharedFrames, Mat perCarFrames[][NUM_PER_CAR_FRAMES])
+{
+    if (hide_disp)
+    {
+        static int already_destroyed=0;
+        if (! already_destroyed) {
+            already_destroyed = 1;
+            for (unsigned int i=0; i<NUM_SHARED_WINDOWS; i++) {
+                int frame = sharedWindows[i];
+                cvDestroyWindow(sharedFrameNames[frame].c_str());
+            }
+            for (unsigned int i=0; i<NUM_PER_CAR_WINDOWS; i++) {
+                int frame = perCarWindows[i];
+                for (int car=0; car<NUM_CARS; car++)
+                    cvDestroyWindow((carNames[car]+
+                                perCarFrameNames[frame]).c_str());
+            }
+        }
+    }
+    else
+    {
+        for (unsigned int i=0; i<NUM_SHARED_WINDOWS; i++)
+        {
+            int frame = sharedWindows[i];
+            imshow(sharedFrameNames[frame], sharedFrames[frame]);
+        }
+
+        for (unsigned int i=0; i<NUM_PER_CAR_WINDOWS; i++)
+        {
+            int frame = perCarWindows[i];
+            for (int car=0; car<NUM_CARS; car++)
+            {
+                imshow(carNames[car] + perCarFrameNames[frame], 
+                        perCarFrames[car][frame]);
+            }
+        }
+        waitKey(1);
+    }
+}
+
+void init_temp_images(Mat &image) {
     for (unsigned int car_ind = 0; car_ind < NUM_CARS; car_ind++)
     {
         tempIplImages[car_ind][IPL_1_IND] =
@@ -384,6 +406,63 @@ void* cap_thr(void* arg)
         tempIplImages[car_ind][IPL_3_IND] =
             cvCreateImage(image.size(), IPL_DEPTH_8U, 3);
     }
+}
+
+static double latency_t;
+void end_timing_one_frame() {
+
+    static double t;
+    static double newt;
+    static double tot_tp = 0;
+    static double tot_lat = 0;
+    static int timer_cnt = 0;
+
+    newt = CycleTimer::currentSeconds();
+
+    /* Measure the current time. Print every 16 frames */
+    tot_tp += (newt - t);
+    tot_lat += (newt - latency_t);
+    t = newt;
+    if ((++timer_cnt) % 16 == 0)
+    {
+        std::cout << "FPS (Throughput)=" << (16 / tot_tp) 
+            << "\n";
+        std::cout << "Frame Latency =" << (tot_lat / 16) 
+            << "\n";
+        tot_tp = tot_lat = 0;
+    }
+}
+
+void start_timing_one_frame() {
+    latency_t = CycleTimer::currentSeconds();
+}
+
+// Main function for tracking
+void* cap_thr(void* arg)
+{
+    puts("***Initializing capture***\n");
+
+    VideoCapture cap;
+    get_cap(cap);
+    if (! cap.isOpened())
+        return 0;
+
+    // Initialize video capture settings
+    //cap.set(CV_CAP_PROP_BRIGHTNESS, .40);
+    //cap.set(CV_CAP_PROP_SATURATION, .08);
+    //cap.set(CV_CAP_PROP_CONTRAST, .07);
+
+    Mat image;
+    cap >> image; /* Initial capture for the size info */
+
+    Mat sharedFrames[NUM_SHARED_FRAMES]; /* Frames for each stage */
+    Mat perCarFrames[NUM_CARS][NUM_PER_CAR_FRAMES];
+
+    // Create windows
+    create_windows(sharedFrames, perCarFrames, image);
+
+    // Initialize IplImages used for cvBlobsLib
+    init_temp_images(image);
     
     // Set up the background subtractor
     BackgroundSubtractorMOG2 mog(50, 16, true);
@@ -398,40 +477,16 @@ void* cap_thr(void* arg)
 
     puts("***Done initializing capture***\n");
 
-    double t = CycleTimer::currentSeconds();
-    double latency_t = CycleTimer::currentSeconds();
-    double tot_tp = 0;
-    double tot_lat = 0;
-    int timer_cnt = 0;
-
     for (;;)
     {
         /* Do timing stuff */
-        /*
-        double newt = CycleTimer::currentSeconds();
-        tot_tp += (newt - t);
-        tot_lat += (newt - latency_t);
-        t = newt;
-        if ((++timer_cnt) % 16 == 0)
-        {
-            std::cout << "FPS (Throughput)=" << (16 / tot_tp) 
-                << "\n";
-            std::cout << "Frame Latency =" << (tot_lat / 16) 
-                << "\n";
-            tot_tp = tot_lat = 0;
-        }
-        */
-        
-        //TODO: Testing. Delete
-        int num_frames;
-        int num_frames_missing0;
-
-        num_frames++;
+        end_timing_one_frame();
 
         cap >> image;
         if (image.empty()) break;
         
-        latency_t = CycleTimer::currentSeconds();
+        /* Do some other timing stuff */
+        start_timing_one_frame();
 
         sharedFrames[CAPTURE_IND] = image.clone();
         
@@ -449,13 +504,6 @@ void* cap_thr(void* arg)
         // Color filter
         for (int car=0; car<NUM_CARS; car++)
         {
-            //TODO: Testing. Delete
-            if (car_info[car].is_car_missing)
-            {
-                car_info[car].num_frames_missing++;
-            }
-            //std::cout << carNames[car] << " | " << car_info[car].num_frames_missing << "/" << num_frames << std::endl;
-
             Scalar mincolor(CALC_RANGE_LOWER(car_info[car].min_color.h, 8),
                         CALC_RANGE_LOWER(car_info[car].min_color.s, 70),
                         CALC_RANGE_LOWER(car_info[car].min_color.v, 70));
@@ -483,78 +531,25 @@ void* cap_thr(void* arg)
 
             // Get blobs
             IplImage *blobImage;
-            // First try dynamic
-            blobImage = dynamic_loc_car(car, 
-                    &perCarFrames[car][PER_CAR_ANDED_DILATED]);
 
-            if (blobImage != NULL)
+            blobImage = static_loc_car(car,
+                    &perCarFrames[car][PER_CAR_COLOR_DILATED]);
+            if (blobImage == NULL)
             {
-                car_info[car].is_car_missing = false;
-                car_info[car].immobile_frame_count = 0;
+                car_info[car].num_frames_missing++;
+                car_info[car].is_car_missing = true;
+                //std::cout << "Car is missing" << std::endl;
             }
             else
             {
-                car_info[car].immobile_frame_count++;
-
-                // Try static if dynamic has failed for too many frames
-                if (car_info[car].immobile_frame_count > STATIC_LOC_THRESHOLD)
-                {
-                    blobImage = static_loc_car(car,
-                            &perCarFrames[car][PER_CAR_COLOR_DILATED]);
-
-                    if (blobImage == NULL)
-                    {
-                        // We failed to find it with both location functions!
-                        car_info[car].is_car_missing = true;
-                        //std::cout << "Car is missing" << std::endl;
-                    }
-                }
-            }
-
-            // Only update if we actually got a new blob
-            if (blobImage != NULL)
-            {
+                car_info[car].num_frames_missing = 0;
+                car_info[car].is_car_missing = false;
                 perCarFrames[car][PER_CAR_BLOBS_IND] = blobImage;
             }
         }
 
-        if (hide_disp)
-        {
-            static int already_destroyed=0;
-            if (! already_destroyed) {
-                already_destroyed = 1;
-                for (unsigned int i=0; i<NUM_SHARED_WINDOWS; i++) {
-                    int frame = sharedWindows[i];
-                    cvDestroyWindow(sharedFrameNames[frame].c_str());
-                }
-                for (unsigned int i=0; i<NUM_PER_CAR_WINDOWS; i++) {
-                    int frame = perCarWindows[i];
-                    for (int car=0; car<NUM_CARS; car++)
-                        cvDestroyWindow((carNames[car]+
-                                    perCarFrameNames[frame]).c_str());
-                }
-            }
-        }
-        else
-        {
-            for (unsigned int i=0; i<NUM_SHARED_WINDOWS; i++)
-            {
-                int frame = sharedWindows[i];
-                imshow(sharedFrameNames[frame], sharedFrames[frame]);
-            }
-
-            for (unsigned int i=0; i<NUM_PER_CAR_WINDOWS; i++)
-            {
-                int frame = perCarWindows[i];
-                for (int car=0; car<NUM_CARS; car++)
-                {
-                    imshow(carNames[car] + perCarFrameNames[frame], 
-                            perCarFrames[car][frame]);
-                }
-            }
-        }
-
-        waitKey(1);
+        // display frames onto the windows
+        display_windows(sharedFrames, perCarFrames);
     }
 
     return 0;

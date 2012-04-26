@@ -27,12 +27,14 @@ brown = (45,  4,   4,   255)
 grey  = (102, 106, 102, 255)
 black = (0,   0,   0,   255)
 
+use_wired_instead_of_xbee = False
+
 def inScreen(pos):
     (x,y) = pos;
     (xd,yd) = display_dims;
     return ((0 <= x < xd) and (0 <= y < yd))
 
-def calibrate(surface):
+def coord_calibrate(surface):
     (width, height) = display_dims;
     # Points in the four corners
     dx = 50;
@@ -74,15 +76,19 @@ if __name__ == '__main__':
     race_surf_full = pygame.image.load(track_img_fn);
     race_surf = pygame.transform.scale(race_surf_full, display_dims);
 
-    # Enable mousebuttondown event. Need to disable all others before enabling
-    # it to prevent other events from firing.
-#pygame.event.set_allowed(None);
-#pygame.event.set_allowed([MOUSEBUTTONDOWN, QUIT]);
+    # Disable most events for performance
+    pygame.event.set_allowed(None);
+    pygame.event.set_allowed([QUIT]);
 
 	# Initialize the speed sender thread for car1, with a 1.0 second interval
-    xbeeSender = xbee.XBee(serial.Serial('/dev/ttyUSB0', 9600))
-    car1 = SpeedSender.forXBee(1.000, xbeeSender, SpeedSender.DEST2)
-    car2 = SpeedSender.forXBee(1.000, xbeeSender, SpeedSender.DEST3)
+    if (use_wired_instead_of_xbee):
+        car1 = SpeedSender.forSerial(1.000, 0)
+        car2 = SpeedSender.forSerial(1.000, 1)
+    else:
+        xbeeSender = xbee.XBee(serial.Serial('/dev/ttyUSB0', 9600))
+        car1 = SpeedSender.forXBee(1.000, xbeeSender, SpeedSender.DEST2)
+        car2 = SpeedSender.forXBee(1.000, xbeeSender, SpeedSender.DEST3)
+
     cars = [car1, car2]
     for car in cars:
         car.start();
@@ -90,8 +96,8 @@ if __name__ == '__main__':
     # Initialize MOGBlob code
     MOGBlob.init_tracker();
 
-    # Do Calibration
-    trnFn = calibrate(race_surf);
+    # Do Coordinate Calibration
+    trnFn = coord_calibrate(race_surf);
     if not trnFn:
         print "Calibration Transformation failed!"
         sys.exit();
@@ -125,15 +131,18 @@ if __name__ == '__main__':
                     color = screen.get_at(trnpos);
                 else:
                     color = 'Not in screen'
-                #print ('CarPos=%s CarTrnPos=%s Color=%s' %
-                       #(pos, trnpos, color));
                 if color == grey:
-                    car.changeSpeed(SpeedSender.NORM)
+                    newspeed = SpeedSender.NORM
                 elif color == brown:
-                    car.changeSpeed(SpeedSender.SLOW)
+                    newspeed = SpeedSender.NORM
+                    #newspeed = SpeedSender.STOP
                 elif color == black:
-                    car.changeSpeed(SpeedSender.NORM)
+                    newspeed = SpeedSender.NORM
                 else:
-                    car.changeSpeed(SpeedSender.SLOW)
-                    #car.changeSpeed(SpeedSender.STOP)
+                    newspeed = SpeedSender.NORM
+                    #newspeed = SpeedSender.STOP
+                newspeed = SpeedSender.SLOW
+                car.changeSpeed(newspeed)
+                #print ('Car=%d CarPos=%s CarTrnPos=%s Color=%s Speed=%d' %
+                       #(carnum, pos, trnpos, color, newspeed));
 
