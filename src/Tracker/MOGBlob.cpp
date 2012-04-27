@@ -41,22 +41,20 @@ using namespace cv;
 /* Shared between cars */
 enum {
     CAPTURE_IND,
+};
+
+static std::string sharedFrameNames[] = {
+    "Capture"
+};
+
+/* Per car frames */
+enum {
     BLURRED_IND,
     BG_SUB_IND,
     SUB_ERODE_IND,
     SUB_DILATE_IND,
     SUB_THRESH_IND,
-    HSV_IND
-};
-
-static std::string sharedFrameNames[] = {
-    "Capture", "Blurred", "BG Subtracted", "BG Sub + Erode",
-    "BG Sub + Erode + Dilate", "BG Sub + Er+Dil + Threshold",
-    "HSV Capture"
-};
-
-/* Per car frames */
-enum {
+    HSV_IND,
     PER_CAR_COLOR_FILTER_IND,
     PER_CAR_COLOR_ERODED,
     PER_CAR_COLOR_DILATED,
@@ -66,6 +64,12 @@ enum {
 };
 
 static String perCarFrameNames[] = {
+    "Blurred",
+    "BG Subtracted",
+    "BG Sub + Erode",
+    "BG Sub + Erode + Dilate",
+    "BG Sub + Er+Dil + Threshold",
+    "HSV Capture",
     "Color Filtered", 
     "Color filtered+Eroded",
     "Color Filtered+Dilated", 
@@ -81,8 +85,9 @@ static String perCarFrameNames[] = {
 
 /* Only the frames we want displayed */
 #ifdef MULTI_DISPLAY
-static int sharedWindows[] = {CAPTURE_IND, HSV_IND};
-static int perCarWindows[] = {PER_CAR_COLOR_DILATED,
+static int sharedWindows[] = {CAPTURE_IND};
+static int perCarWindows[] = {HSV_IND,
+                              PER_CAR_COLOR_DILATED,
                               PER_CAR_BLOBS_IND};
 #else
 static int sharedWindows[] = {CAPTURE_IND};
@@ -238,7 +243,7 @@ IplImage* find_and_draw_best_blob(int car, CBlobResult blobs,
 
     // Found multiple blobs. Pick the best one based on proximity to 
     // previous car location
-    if (blobs.GetNumBlobs() > 1)   
+    if (blobs.GetNumBlobs() > 1 && car_info[car].car_x != -1)
     {
         for (int blobNum = 1; blobNum < blobs.GetNumBlobs(); blobNum++)
         {
@@ -273,21 +278,26 @@ IplImage* find_and_draw_best_blob(int car, CBlobResult blobs,
     return blob_image;
 }
 
-IplImage* static_loc_car(int car, Mat *color_frame)
+bool static_loc_car(int car, Mat *color_frame, IplImage **blob_buf)
 {
     CBlobResult blobs;
-    IplImage *blob_image = tempIplImages[car][IPL_3_IND];
+    *blob_buf = tempIplImages[car][IPL_3_IND];
 
-    get_filtered_blobs(color_frame, blob_image, &blobs, car);
+    get_filtered_blobs(color_frame, *blob_buf, &blobs, car);
 
     if (blobs.GetNumBlobs() == 0)
     {
-        return NULL;
+        pthread_mutex_lock(&car_info[car].loc_mx);
+        car_info[car].car_x = -1;
+        car_info[car].car_y = -1;
+        pthread_mutex_unlock(&car_info[car].loc_mx);
+        return false;
     }
     else
     {
-        return find_and_draw_best_blob(car, blobs, blob_image, 
+        find_and_draw_best_blob(car, blobs, *blob_buf, 
                 CV_RGB(0, 0, 255));
+        return true;
     }
 }
 
@@ -422,13 +432,13 @@ void init_temp_images(Size s) {
     }
 }
 
-IplImage* findBlobsFromCapture(int car, Mat capture, Mat *sharedFrames, 
-        Mat perCarFrames[][NUM_PER_CAR_FRAMES])
+bool findBlobsFromCapture(int car, Mat capture, Mat *sharedFrames, 
+        Mat perCarFrames[][NUM_PER_CAR_FRAMES], IplImage **blob_buf)
 {
     // Blur
-    medianBlur(capture, sharedFrames[BLURRED_IND], 3);
+    medianBlur(capture, perCarFrames[car][BLURRED_IND], 3);
     // Convert to HSV 
-    cvtColor(sharedFrames[BLURRED_IND], sharedFrames[HSV_IND], 
+    cvtColor(perCarFrames[car][BLURRED_IND], perCarFrames[car][HSV_IND], 
             CV_BGR2HSV);
 
     Scalar mincolor(CALC_RANGE_LOWER(car_info[car].min_color.h, 8),
@@ -438,7 +448,7 @@ IplImage* findBlobsFromCapture(int car, Mat capture, Mat *sharedFrames,
             CALC_RANGE_UPPER(car_info[car].max_color.s, 70),
             CALC_RANGE_UPPER(car_info[car].max_color.v, 70));
 
-    inRange(sharedFrames[HSV_IND], mincolor, maxcolor,
+    inRange(perCarFrames[car][HSV_IND], mincolor, maxcolor,
             perCarFrames[car][PER_CAR_COLOR_FILTER_IND]);
 
     // Erode noise away and then dilate it before anding
@@ -448,13 +458,11 @@ IplImage* findBlobsFromCapture(int car, Mat capture, Mat *sharedFrames,
             perCarFrames[car][PER_CAR_COLOR_DILATED], 
             dilate_elem_huge);
 
-    // Get blobs
-    IplImage *blobImage;
-
     // Reset values in box to invalid ones
-    blobImage = static_loc_car(car,
-            &perCarFrames[car][PER_CAR_COLOR_DILATED]);
-    return blobImage;
+    bool found = static_loc_car(car,
+            &perCarFrames[car][PER_CAR_COLOR_DILATED],
+            blob_buf);
+    return found;
 }
 
 static double latency_t;
@@ -518,13 +526,13 @@ void* cap_thr(void* arg)
     for (;;)
     {
         /* Do timing stuff */
-        end_timing_one_frame();
+        //end_timing_one_frame();
 
         cap >> image;
         if (image.empty()) break;
         
         /* Do some other timing stuff */
-        start_timing_one_frame();
+        //start_timing_one_frame();
 
         sharedFrames[CAPTURE_IND] = image.clone();
 
@@ -562,24 +570,25 @@ void* cap_thr(void* arg)
             init_temp_images(box.size());
 
             IplImage *blobImage;
-            blobImage = findBlobsFromCapture(car, box, sharedFrames, 
-                    perCarFrames);
+            bool found = findBlobsFromCapture(car, box, sharedFrames, 
+                    perCarFrames, &blobImage);
 
             // Retry on whole image
-            if (blobImage == NULL) {
+            if (!found) {
                 car_info[car].box_x = 0;
                 car_info[car].box_y = 0;
                 // Initialize IplImages used for cvBlobsLib
                 free_temp_images();
                 init_temp_images(sharedFrames[CAPTURE_IND].size());
 
-                blobImage = findBlobsFromCapture(car, 
+                found = findBlobsFromCapture(car, 
                         sharedFrames[CAPTURE_IND], 
                         sharedFrames, 
-                        perCarFrames);
+                        perCarFrames,
+                        &blobImage);
             }
 
-            if (blobImage == NULL)
+            if (! found)
             {
                 car_info[car].num_frames_missing++;
                 car_info[car].is_car_missing = true;
@@ -591,6 +600,8 @@ void* cap_thr(void* arg)
                 car_info[car].is_car_missing = false;
                 perCarFrames[car][PER_CAR_BLOBS_IND] = blobImage;
             }
+            printf("car %d is at (%f, %f)\n", car,
+                    car_info[car].car_x, car_info[car].car_y);
         }
 
         // display frames onto the windows
@@ -683,6 +694,19 @@ static void init_stuff()
     // Get rid of the calibration window
     cvDestroyWindow(windowName);
 #endif
+
+    car_info[0].min_color.h = 15;
+    car_info[0].min_color.s = 50;
+    car_info[0].min_color.v = 150;
+    car_info[0].max_color.h = 35;
+    car_info[0].max_color.s = 150;
+    car_info[0].max_color.v = 255;
+    car_info[1].min_color.h = 80;
+    car_info[1].min_color.s = 100;
+    car_info[1].min_color.v = 150;
+    car_info[1].max_color.h = 100;
+    car_info[1].max_color.s = 255;
+    car_info[1].max_color.v = 255;
 }
 
 int main()
@@ -750,6 +774,11 @@ tuple get_car_loc(int car)
     y = car_info[car].car_y;
     pthread_mutex_unlock(&car_info[car].loc_mx);
 
+    printf("(%f, %f)\n", x, y);
+    if (x == -1) {
+        assert(y == -1);
+        return tuple();
+    }
     return make_tuple(x, y);
 }
 
