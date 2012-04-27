@@ -142,6 +142,7 @@ static struct {
     // Known location of the car. Need a mutex to lock around read/write 
     // access of these globals
     pthread_mutex_t loc_mx;
+    bool car_found;
     float car_x; // Auto-Initialized to zero
     float car_y; // Auto-initialized to zero
     float box_x;
@@ -243,7 +244,7 @@ IplImage* find_and_draw_best_blob(int car, CBlobResult blobs,
 
     // Found multiple blobs. Pick the best one based on proximity to 
     // previous car location
-    if (blobs.GetNumBlobs() > 1 && car_info[car].car_x != -1)
+    if (blobs.GetNumBlobs() > 1 && car_info[car].car_found)
     {
         for (int blobNum = 1; blobNum < blobs.GetNumBlobs(); blobNum++)
         {
@@ -269,6 +270,7 @@ IplImage* find_and_draw_best_blob(int car, CBlobResult blobs,
     // Update global location variables
     // Make visible to python thread
     pthread_mutex_lock(&car_info[car].loc_mx);
+    car_info[car].car_found = true;
     car_info[car].car_x = best_blob_x;
     car_info[car].car_y = best_blob_y;
     pthread_mutex_unlock(&car_info[car].loc_mx);
@@ -288,8 +290,7 @@ bool static_loc_car(int car, Mat *color_frame, IplImage **blob_buf)
     if (blobs.GetNumBlobs() == 0)
     {
         pthread_mutex_lock(&car_info[car].loc_mx);
-        car_info[car].car_x = -1;
-        car_info[car].car_y = -1;
+        car_info[car].car_found = false;
         pthread_mutex_unlock(&car_info[car].loc_mx);
         return false;
     }
@@ -600,8 +601,10 @@ void* cap_thr(void* arg)
                 car_info[car].is_car_missing = false;
                 perCarFrames[car][PER_CAR_BLOBS_IND] = blobImage;
             }
+            /*
             printf("car %d is at (%f, %f)\n", car,
                     car_info[car].car_x, car_info[car].car_y);
+                    */
         }
 
         // display frames onto the windows
@@ -767,11 +770,18 @@ tuple get_click_loc()
 
 tuple get_car_loc(int car)
 {
-    float x, y;
+    float x=-1;
+    float y=-1;
+    tuple xy;
 
     pthread_mutex_lock(&car_info[car].loc_mx);
-    x = car_info[car].car_x;
-    y = car_info[car].car_y;
+    if (car_info[car].car_found) {
+        x = car_info[car].car_x;
+        y = car_info[car].car_y;
+        xy = make_tuple(x,y);
+    } else {
+        xy = tuple();
+    }
     pthread_mutex_unlock(&car_info[car].loc_mx);
 
     printf("(%f, %f)\n", x, y);
@@ -779,7 +789,7 @@ tuple get_car_loc(int car)
         assert(y == -1);
         return tuple();
     }
-    return make_tuple(x, y);
+    return xy;
 }
 
 void suppress_display()

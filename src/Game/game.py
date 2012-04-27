@@ -48,15 +48,15 @@ if __name__ == '__main__':
     def setCarSpeed(carnum, speed):
         cars[carnum].changeSpeed(speed);
 
+    # Initialize MOGBlob code
+    MOGBlob.init_tracker();
+
     # Initialize game logic for 2 cars
     game = game_logic.GameLogic();
     game.setClickPosFunc(get_click_pos);
     game.setCarSpeedFunc(setCarSpeed);
     game.setCarLocFunc(MOGBlob.get_car_loc);
     game.setDestroyFunc(MOGBlob.destroy_tracker);
-
-    # Initialize MOGBlob code
-    MOGBlob.init_tracker();
 
     # Do Coordinate Calibration
     trnFn = game.coord_calibrate();

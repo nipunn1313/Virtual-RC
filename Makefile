@@ -19,7 +19,7 @@ blobs:
 tracker: trackerso trackerexec
 	
 trackerexec: $(TRACKER_DIR)/MOGBlob.cpp
-	$(CC) -o MOGBlob -DMULTI_DISPLAY $(TRACKER_DIR)/MOGBlob.cpp $(CC_FLAGS)
+	$(CC) -o MOGBlob -DMULTI_DISPLAY -DSUPPRESS_CALIBRATE $(TRACKER_DIR)/MOGBlob.cpp $(CC_FLAGS)
 
 debug: $(TRACKER_DIR)/MOGBlob.cpp
 	$(CC_DEBUG) -o MOGBlob -DMULTI_DISPLAY $(TRACKER_DIR)/MOGBlob.cpp $(CC_FLAGS)
