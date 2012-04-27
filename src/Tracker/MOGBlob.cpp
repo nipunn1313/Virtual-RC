@@ -41,20 +41,22 @@ using namespace cv;
 /* Shared between cars */
 enum {
     CAPTURE_IND,
-};
-
-static std::string sharedFrameNames[] = {
-    "Capture"
-};
-
-/* Per car frames */
-enum {
     BLURRED_IND,
     BG_SUB_IND,
     SUB_ERODE_IND,
     SUB_DILATE_IND,
     SUB_THRESH_IND,
-    HSV_IND,
+    HSV_IND
+};
+
+static std::string sharedFrameNames[] = {
+    "Capture", "Blurred", "BG Subtracted", "BG Sub + Erode",
+    "BG Sub + Erode + Dilate", "BG Sub + Er+Dil + Threshold",
+    "HSV Capture"
+};
+
+/* Per car frames */
+enum {
     PER_CAR_COLOR_FILTER_IND,
     PER_CAR_COLOR_ERODED,
     PER_CAR_COLOR_DILATED,
@@ -64,12 +66,6 @@ enum {
 };
 
 static String perCarFrameNames[] = {
-    "Blurred",
-    "BG Subtracted",
-    "BG Sub + Erode",
-    "BG Sub + Erode + Dilate",
-    "BG Sub + Er+Dil + Threshold",
-    "HSV Capture",
     "Color Filtered", 
     "Color filtered+Eroded",
     "Color Filtered+Dilated", 
@@ -85,9 +81,8 @@ static String perCarFrameNames[] = {
 
 /* Only the frames we want displayed */
 #ifdef MULTI_DISPLAY
-static int sharedWindows[] = {CAPTURE_IND};
-static int perCarWindows[] = {HSV_IND,
-                              PER_CAR_COLOR_DILATED,
+static int sharedWindows[] = {CAPTURE_IND, HSV_IND};
+static int perCarWindows[] = {PER_CAR_COLOR_DILATED,
                               PER_CAR_BLOBS_IND};
 #else
 static int sharedWindows[] = {CAPTURE_IND};
@@ -437,9 +432,9 @@ bool findBlobsFromCapture(int car, Mat capture, Mat *sharedFrames,
         Mat perCarFrames[][NUM_PER_CAR_FRAMES], IplImage **blob_buf)
 {
     // Blur
-    medianBlur(capture, perCarFrames[car][BLURRED_IND], 3);
+    medianBlur(capture, sharedFrames[BLURRED_IND], 3);
     // Convert to HSV 
-    cvtColor(perCarFrames[car][BLURRED_IND], perCarFrames[car][HSV_IND], 
+    cvtColor(sharedFrames[BLURRED_IND], sharedFrames[HSV_IND], 
             CV_BGR2HSV);
 
     Scalar mincolor(CALC_RANGE_LOWER(car_info[car].min_color.h, 8),
@@ -449,7 +444,7 @@ bool findBlobsFromCapture(int car, Mat capture, Mat *sharedFrames,
             CALC_RANGE_UPPER(car_info[car].max_color.s, 70),
             CALC_RANGE_UPPER(car_info[car].max_color.v, 70));
 
-    inRange(perCarFrames[car][HSV_IND], mincolor, maxcolor,
+    inRange(sharedFrames[HSV_IND], mincolor, maxcolor,
             perCarFrames[car][PER_CAR_COLOR_FILTER_IND]);
 
     // Erode noise away and then dilate it before anding
