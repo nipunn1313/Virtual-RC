@@ -6,9 +6,10 @@ from pygame.locals import *;
 
 import sys;
 import os;
-from affine import Affine_Fit;
+import game_logic;
 
 sys.path.append(os.getcwd() + '/lib');
+sys.path.append(os.getcwd() + '/../../lib');
 import MOGBlob;
 
 # These are the imports necessary for sending speed to the cars
@@ -16,70 +17,21 @@ import xbee;
 import serial;
 from speedsender import SpeedSender
 
-title = 'Virtual RC'
-display_dims = (1170,780);
 camsize = (640,480);
-img_dir = 'Images/'
-track_img_fn = img_dir + 'racetrack.png'
-calibrate_img_fn = img_dir + 'arrow.png'
-
-brown = (45,  4,   4,   255)
-grey  = (102, 106, 102, 255)
-black = (0,   0,   0,   255)
 
 use_wired_instead_of_xbee = False
 
-def inScreen(pos):
-    (x,y) = pos;
-    (xd,yd) = display_dims;
-    return ((0 <= x < xd) and (0 <= y < yd))
+def get_click_pos():
+    MOGBlob.ask_for_click();
+    loc = MOGBlob.get_click_loc();
 
-def coord_calibrate(surface):
-    (width, height) = display_dims;
-    # Points in the four corners
-    dx = 50;
-    to_pts = ([(dx,dx), (width-dx, dx), (dx, height-dx),
-                (width-dx, height-dx)]);
-    from_pts = [];
-
-    # Load arrow image
-    arrow = pygame.image.load(calibrate_img_fn);
-
-    # Get user to click
-    for to_pt in to_pts:
-        copy = surface.copy();
-        copy.blit(arrow, to_pt);
-
-        screen = pygame.display.get_surface();
-        screen.blit(copy, (0,0));
+    while not loc:
         pygame.display.flip();
-
-        MOGBlob.ask_for_click();
         loc = MOGBlob.get_click_loc();
+    return loc;
 
-        while not loc:
-            pygame.display.flip();
-            loc = MOGBlob.get_click_loc();
-
-        from_pts.append(loc);
-
-    trn = Affine_Fit(from_pts, to_pts);
-    return trn;
 
 if __name__ == '__main__':
-    pygame.init();
-
-    window = pygame.display.set_mode(display_dims);
-    pygame.display.set_caption(title);
-
-    screen = pygame.display.get_surface();
-    race_surf_full = pygame.image.load(track_img_fn);
-    race_surf = pygame.transform.scale(race_surf_full, display_dims);
-
-    # Disable most events for performance
-    pygame.event.set_allowed(None);
-    pygame.event.set_allowed([QUIT]);
-
 	# Initialize the speed sender thread for car1, with a 1.0 second interval
     if (use_wired_instead_of_xbee):
         car1 = SpeedSender.forSerial(1.000, 0)
@@ -93,11 +45,21 @@ if __name__ == '__main__':
     for car in cars:
         car.start();
 
+    def setCarSpeed(carnum, speed):
+        cars[carnum].changeSpeed(speed);
+
+    # Initialize game logic for 2 cars
+    game = game_logic.GameLogic();
+    game.setClickPosFunc(get_click_pos);
+    game.setCarSpeedFunc(setCarSpeed);
+    game.setCarLocFunc(MOGBlob.get_car_loc);
+    game.setDestroyFunc(MOGBlob.destroy_tracker);
+
     # Initialize MOGBlob code
     MOGBlob.init_tracker();
 
     # Do Coordinate Calibration
-    trnFn = coord_calibrate(race_surf);
+    trnFn = game.coord_calibrate();
     if not trnFn:
         print "Calibration Transformation failed!"
         sys.exit();
@@ -107,42 +69,5 @@ if __name__ == '__main__':
 
     MOGBlob.suppress_display();
 
-    #Draw to screen and show changes
-    screen.blit(race_surf, (0,0));
-    pygame.display.flip();
-
-    while True:
-        # Quit on quit events
-        events = pygame.event.get();
-        for event in events:
-            #print event
-            if event.type == QUIT:
-                pygame.display.quit();
-                MOGBlob.destroy_tracker();
-                sys.exit(0);
-
-        for carnum in range(2):
-            car = cars[carnum];
-            pos = MOGBlob.get_car_loc(carnum);
-            if pos:
-                (tx,ty) = trnFn.Transform(pos);
-                trnpos = (int(tx), int(ty));
-                if inScreen(trnpos):
-                    color = screen.get_at(trnpos);
-                else:
-                    color = 'Not in screen'
-                if color == grey:
-                    newspeed = SpeedSender.NORM
-                elif color == brown:
-                    newspeed = SpeedSender.NORM
-                    #newspeed = SpeedSender.STOP
-                elif color == black:
-                    newspeed = SpeedSender.NORM
-                else:
-                    newspeed = SpeedSender.NORM
-                    #newspeed = SpeedSender.STOP
-                newspeed = SpeedSender.SLOW
-                car.changeSpeed(newspeed)
-                #print ('Car=%d CarPos=%s CarTrnPos=%s Color=%s Speed=%d' %
-                       #(carnum, pos, trnpos, color, newspeed));
+    game.main_loop();
 

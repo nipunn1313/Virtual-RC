@@ -33,9 +33,10 @@ trackerso: $(TRACKER_DIR)/MOGBlob.cpp
 		$(TRACKER_DIR)/MOGBlob.cpp $(CC_FLAGS)
 
 game: $(GAME_DIR)/game.py
-	rm -f game.py
+	rm -f game.py game_logic.py
 	ln -s $(GAME_DIR)/game.py
+	ln -s $(GAME_DIR)/game_logic.py
 
 clean:
-	rm -f game.py game.pyc $(LIB_DIR)/* MOGBlob
+	rm -f game*.py game*.pyc $(LIB_DIR)/* MOGBlob
 

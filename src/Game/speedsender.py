@@ -2,6 +2,7 @@ import threading
 import time
 import xbee
 import serial
+import speeds
 
 # Note that while only one XBee will be used to send data to multiple
 # controllers, there will need to be 'n' serial cables for 'n' controllers.
@@ -9,11 +10,6 @@ import serial
 xbeeLock = threading.Lock()
 
 class SpeedSender (threading.Thread):
-    STOP = 0
-    SLOW = 1
-    NORM = 2
-    FAST = 3
-
     SERIAL = 5
     XBEE = 6
 
@@ -21,7 +17,7 @@ class SpeedSender (threading.Thread):
     DEST3 = "\x00\x03"
 
     def __init__(self, commType, interval, lock, serialSender, xbeeSender, destination):
-        self.speed = self.SLOW
+        self.speed = speeds.SLOW
         self.commType = commType
         self.interval = interval
         self.lock = lock
