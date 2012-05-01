@@ -2,3 +2,4 @@
 lib/
 MOGBlob
 game.py
+game_logic.py
