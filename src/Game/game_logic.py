@@ -13,7 +13,7 @@ title = 'Virtual RC'
 display_dims = (1170,780);
 item_dims = (20,20);
 img_dir = 'Images/'
-track_img_fn = img_dir + 'racetrack.png'
+track_img_fn = img_dir + 'fattrack.png'
 calibrate_img_fn = img_dir + 'arrow.png'
 mushroom_img_fn = img_dir + 'mushroom.jpg'
 
@@ -169,7 +169,7 @@ class GameLogic:
 
         speedmap = {
             grey:speeds.NORM,
-            brown:speeds.SLOW,
+            brown:speeds.WALL,
             black:speeds.NORM,
         };
 
@@ -205,7 +205,7 @@ class GameLogic:
                         newspeed = speedmap[color];
 
                     # This is where we stop effects of items
-                    if newspeed == speeds.SLOW or newspeed == speeds.STOP:
+                    if newspeed == speeds.WALL or newspeed == speeds.STOP:
                         self.itemAffectingCar[carnum] = None;
                     elif self.itemAffectingCar[carnum]:
                         effect = (self.itemAffectingCar[carnum].
