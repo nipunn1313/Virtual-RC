@@ -1,0 +1,5 @@
+STOP = 0
+SLOW = 1
+NORM = 2
+FAST = 3
+
