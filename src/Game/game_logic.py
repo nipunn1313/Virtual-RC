@@ -11,11 +11,12 @@ import speeds
 
 title = 'Virtual RC'
 display_dims = (1170,780);
-item_dims = (20,20);
+item_dims = (40,40);
+item_buf = 45;
 img_dir = 'Images/'
-track_img_fn = img_dir + 'racetrack.png'
+track_img_fn = img_dir + 'fattrack.png'
 calibrate_img_fn = img_dir + 'arrow.png'
-mushroom_img_fn = img_dir + 'mushroom.jpg'
+mushroom_img_fn = img_dir + 'mushroom.bmp'
 
 brown = (45,  4,   4,   255)
 grey  = (102, 106, 102, 255)
@@ -32,16 +33,22 @@ class Item():
     def __init__(self, img_fn):
         surf = pygame.image.load(img_fn);
         self.img_surf = pygame.transform.scale(surf, item_dims);
+        self.img_surf.set_colorkey((255,255,255));
         self.on_map = 0;
         self.affecting = -1;
 
     def appear_randomly(self, game):
         if not self.on_map:
             (width, height) = display_dims;
-            pos = (0,0);
-            while game.screen.get_at(pos) != grey:
-                pos = (random.randint(0,width-1),
-                        random.randint(0,height-1))
+            pos = (item_buf,item_buf);
+            while (game.screen.get_at(pos) != grey or
+                   game.screen.get_at((pos[0]+item_buf, pos[1]+item_buf)) != grey or
+                   game.screen.get_at((pos[0]+item_buf, pos[1]-item_buf)) != grey or
+                   game.screen.get_at((pos[0]-item_buf, pos[1]+item_buf)) != grey or
+                   game.screen.get_at((pos[0]-item_buf, pos[1]-item_buf)) != grey
+                  ):
+                pos = (random.randint(item_buf,width-item_buf-1),
+                        random.randint(item_buf,height-item_buf-1))
 
             # Create rect. Center it
             self.rect = pygame.Rect(pos, item_dims);
