@@ -584,8 +584,12 @@ void* cap_thr(void* arg)
                         &blobImage);
             }
 
+            static int missing=0;
+            static int tot=0;
+            tot++;
             if (! found)
             {
+                missing++;
                 car_info[car].num_frames_missing++;
                 car_info[car].is_car_missing = true;
                 //std::cout << "Car is missing" << std::endl;
@@ -596,6 +600,7 @@ void* cap_thr(void* arg)
                 car_info[car].is_car_missing = false;
                 perCarFrames[car][PER_CAR_BLOBS_IND] = blobImage;
             }
+            //printf("missing/tot=%d/%d=%f\n",missing,tot,(float)missing/tot);
             /*
             printf("car %d is at (%f, %f)\n", car,
                     car_info[car].car_x, car_info[car].car_y);
@@ -618,6 +623,7 @@ static void init_stuff()
     for (int car=0; car<NUM_CARS; car++)
         pthread_mutex_init(&car_info[car].loc_mx, NULL);
 
+//#define SUPPRESS_CALIBRATE
 #ifndef SUPPRESS_CALIBRATE
     VideoCapture cap;
     get_cap(cap);
@@ -693,6 +699,7 @@ static void init_stuff()
     cvDestroyWindow(windowName);
 #endif
 
+    /*
     car_info[0].min_color.h = 15;
     car_info[0].min_color.s = 50;
     car_info[0].min_color.v = 150;
@@ -705,6 +712,7 @@ static void init_stuff()
     car_info[1].max_color.h = 100;
     car_info[1].max_color.s = 255;
     car_info[1].max_color.v = 255;
+    */
 }
 
 int main()
@@ -779,7 +787,7 @@ tuple get_car_loc(int car)
     }
     pthread_mutex_unlock(&car_info[car].loc_mx);
 
-    printf("(%f, %f)\n", x, y);
+    //printf("(%f, %f)\n", x, y);
     if (x == -1) {
         assert(y == -1);
         return tuple();
