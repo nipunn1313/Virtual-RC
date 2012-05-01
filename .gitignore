@@ -1,1 +1,4 @@
 *.pyc
+lib/
+MOGBlob
+game.py
