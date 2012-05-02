@@ -183,8 +183,8 @@ class GameLogic:
 
         speedmap = {
             grey:speeds.NORM,
-            brown:speeds.SLOW,
-            black:speeds.NORM
+            brown:speeds.WALL,
+            black:speeds.NORM,
         };
 
         items = [ Mushroom(), Mushroom() ];
@@ -219,7 +219,7 @@ class GameLogic:
                         newspeed = speedmap[color];
 
                     # This is where we stop effects of items
-                    if newspeed == speeds.SLOW or newspeed == speeds.STOP:
+                    if newspeed == speeds.WALL or newspeed == speeds.STOP:
                         self.itemAffectingCar[carnum] = None;
                     elif self.itemAffectingCar[carnum]:
                         effect = (self.itemAffectingCar[carnum].

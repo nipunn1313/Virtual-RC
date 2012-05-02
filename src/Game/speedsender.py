@@ -17,7 +17,7 @@ class SpeedSender (threading.Thread):
     DEST3 = "\x00\x03"
 
     def __init__(self, commType, interval, lock, serialSender, xbeeSender, destination):
-        self.speed = speeds.SLOW
+        self.speed = speeds.STOP
         self.commType = commType
         self.interval = interval
         self.lock = lock
