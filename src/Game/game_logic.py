@@ -92,6 +92,7 @@ class Mushroom(Item):
         else:
             return None
 
+
 class GameLogic:
     def __init__(self):
         # Setup pygame and screen
@@ -172,12 +173,18 @@ class GameLogic:
                 sys.exit(0);
 
     def main_loop(self):
+        font_fn = pygame.font.get_default_font();
+        font = pygame.font.Font(font_fn, 48);
+        clock = pygame.time.Clock();
+        clock.tick();
+        millis = 0.0;
+
         self.draw();
 
         speedmap = {
             grey:speeds.NORM,
             brown:speeds.SLOW,
-            black:speeds.NORM,
+            black:speeds.NORM
         };
 
         items = [ Mushroom(), Mushroom() ];
@@ -239,12 +246,29 @@ class GameLogic:
             if carposs[0]:
                 carRects[0] = (pygame.draw.circle(self.screen, 
                             (255,255,255), carposs[0], car_radius));
+            else:
+                pygame.draw.circle(self.screen, (255,255,255), (30, 30));
             if carposs[1]:
                 carRects[1] = (pygame.draw.circle(self.screen, 
                             (0,0,0), carposs[1], car_radius));
+            else:
+                pygame.draw.circle(self.screen, (0,0,0), (60, 30));
+
             # Items do their thing based on cars' locations
             for item in items:
                 item.update(self, carRects);
+
+            # Blit clock in center
+            millis = millis + clock.tick();
+            timemin = int(millis) / (60000);
+            timesec = (int(millis) / (1000)) % 60;
+            timehund = (int(millis) % 1000) / 10;
+            timestr = '%02d:%02d:%02d' % (timemin, timesec, timehund);
+
+            clocksurf = font.render(timestr, True, (255,255,255), brown);
+            clocksize = clocksurf.get_size();
+            self.draw(clocksurf, ((display_dims[0]-200)/2, 
+                        (display_dims[1]-50)/2));
 
             pygame.display.flip();
 
